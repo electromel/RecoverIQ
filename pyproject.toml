@@ -8,7 +8,7 @@ version = "0.3.0"
 description = "Tableau de bord local de récupération et d'entraînement à partir de Garmin Connect"
 readme = "README.md"
 requires-python = ">=3.11"
-license = "MIT"
+license = { text = "MIT" }
 dependencies = [
     # Version figée : la bibliothèque évolue vite et son API change entre versions mineures.
     "garminconnect==0.3.2",
