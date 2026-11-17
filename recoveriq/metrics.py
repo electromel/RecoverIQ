@@ -11,6 +11,7 @@ class Metric:
     label: str
     key: str = "date"  # colonne clé primaire
     listed: bool = True  # affiché dans l'état des données (page Synchronisation)
+    newer_by: str | None = None  # si renseignée : une ligne existante n'est remplacée que par une plus récente
 
 
 METRICS: tuple[Metric, ...] = (
@@ -30,6 +31,7 @@ METRICS: tuple[Metric, ...] = (
     Metric("daily_spo2", "SpO2"),
     Metric("activity", "Activités", key="activity_id"),
     Metric("readiness_event", "Relevés Training Readiness", key="timestamp_local", listed=False),
+    Metric("device", "Montres", key="device_id", listed=False, newer_by="date"),
 )
 
 METRICS_BY_TABLE = {m.table: m for m in METRICS}

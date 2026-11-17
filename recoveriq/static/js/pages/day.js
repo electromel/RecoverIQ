@@ -24,6 +24,18 @@ const headDate = (iso) => new Date(`${iso}T00:00:00`).toLocaleDateString("fr-CH"
 });
 const fmtClock = (ms) => new Date(ms).toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" });
 
+/** Montre du jour : celle des activités, et la montre principale Garmin si elle diffère. */
+function deviceLine(devices) {
+  if (!devices) return "";
+  const acts = devices.activities ?? [];
+  const primary = (devices.primary ?? []).filter((n) => !acts.includes(n));
+  const parts = [];
+  if (acts.length) parts.push(`${escapeHtml(acts.join(", "))}${primary.length ? " (activités)" : ""}`);
+  if (primary.length) parts.push(`${escapeHtml(primary.join(", "))}${acts.length ? " (montre principale Garmin)" : ""}`);
+  if (!parts.length) return "";
+  return `<p class="small" style="margin:4px 0 0">Montre : <a href="#/devices">${parts.join(" · ")}</a></p>`;
+}
+
 /** Début (ms) d'une activité : « YYYY-MM-DD HH:MM:SS » à l'heure locale. */
 const activityStart = (a) => (a.start_local ? new Date(a.start_local.replace(" ", "T")).getTime() : null);
 
@@ -67,6 +79,7 @@ export async function render(view, params, ctx) {
       <h1>Détail du ${escapeHtml(longDate(day))}</h1>
       <p class="small muted" style="margin:2px 0 0">Veille, jour et lendemain · glisser pour se déplacer dans le temps,
         molette pour zoomer, double-clic pour revenir aux 3 jours.</p>
+      ${deviceLine(data.devices?.[day])}
     </div>
     <div class="toolbar">
       ${origin ? `<a class="button secondary" href="#/metric/${encodeURIComponent(origin)}">← Retour à l'indicateur</a>` : ""}
@@ -192,6 +205,7 @@ export async function render(view, params, ctx) {
         a.avg_hr ? `FC ${fmtNum(a.avg_hr)} / ${fmtNum(a.max_hr)} bpm` : null,
         a.training_load ? `charge ${fmtNum(a.training_load)}` : null,
         a.aerobic_te !== null ? `effet ${fmtNum(a.aerobic_te, 1)} / ${fmtNum(a.anaerobic_te, 1)}` : null,
+        a.device ? `montre : ${a.device}` : null,
       ].filter(Boolean);
       const when = s ? `${headDate(a.date)} ${fmtClock(s)}–${fmtClock(s + (a.duration_s ?? 0) * 1000)}` : headDate(a.date);
       return `<div class="activity-item"><span class="when">${escapeHtml(when)}</span>

@@ -11,6 +11,7 @@ from fastapi.responses import Response
 from recoveriq.analytics.catalog import PERIODS, SERIES, SERIES_BY_KEY
 from recoveriq.analytics.correlations import correlations_view
 from recoveriq.analytics.day import day_view
+from recoveriq.analytics.devices import devices_view
 from recoveriq.analytics.home import home_view
 from recoveriq.analytics.series import series_view
 from recoveriq.analytics.training import activities_list, training_view
@@ -125,6 +126,22 @@ def export_training(period: str = PeriodQuery) -> Response:
         ("focus_low_aerobic", "Focus aérobie basse"), ("focus_high_aerobic", "Focus aérobie haute"),
         ("focus_anaerobic", "Focus anaérobie"),
     ], data["daily"])
+
+
+@router.get("/devices")
+def devices() -> list[dict[str, Any]]:
+    with connect() as conn:
+        return devices_view(conn)
+
+
+@router.get("/export/devices.csv")
+def export_devices() -> Response:
+    rows = [{**r, "types": ", ".join(f"{t['type']} ({t['count']})" for t in r["types"])} for r in devices()]
+    return csv_response("materiel", [
+        ("label", "Montre"), ("device_id", "Identifiant Garmin"), ("first_date", "Première activité"),
+        ("last_date", "Dernière activité"), ("activities", "Activités"), ("duration_s", "Durée (s)"),
+        ("distance_m", "Distance (m)"), ("elev_gain_m", "D+ (m)"), ("types", "Types"),
+    ], rows)
 
 
 @router.get("/export/activities.csv")

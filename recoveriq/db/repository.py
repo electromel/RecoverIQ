@@ -38,6 +38,7 @@ def upsert_rows(conn: sqlite3.Connection, table: str, rows: list[dict[str, Any]]
     if table not in METRICS_BY_TABLE:
         raise ValueError(f"Table inconnue : {table}")
     key = METRICS_BY_TABLE[table].key
+    newer_by = METRICS_BY_TABLE[table].newer_by
     allowed = set(_columns(conn, table))
     for row in rows:
         cols = [c for c in row if c in allowed]
@@ -50,6 +51,9 @@ def upsert_rows(conn: sqlite3.Connection, table: str, rows: list[dict[str, Any]]
         )
         sql = f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({placeholders})"
         sql += f" ON CONFLICT({key}) DO UPDATE SET {updates}" if updates else " ON CONFLICT DO NOTHING"
+        if updates and newer_by:
+            # L'import historique remonte le temps : une donnée plus ancienne n'écrase pas la récente.
+            sql += f" WHERE excluded.{newer_by} >= {table}.{newer_by}"
         conn.execute(sql, [row[c] for c in cols])
 
 

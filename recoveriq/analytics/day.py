@@ -22,6 +22,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from recoveriq.analytics.catalog import SERIES
+from recoveriq.analytics.devices import device_label
 
 Point = list[float]   # [epoch_ms, valeur]
 
@@ -182,20 +183,51 @@ def daily_values(conn: sqlite3.Connection, dates: list[str]) -> list[dict[str, A
 
 def activities(conn: sqlite3.Connection, first: str, last: str) -> list[dict[str, Any]]:
     rows = conn.execute(
-        "SELECT activity_id, date, start_local, type, name, duration_s, distance_m, elev_gain_m, "
-        "avg_hr, max_hr, calories, training_load, aerobic_te, anaerobic_te "
-        "FROM activity WHERE date BETWEEN ? AND ? ORDER BY start_local", (first, last),
+        "SELECT a.activity_id, a.date, a.start_local, a.type, a.name, a.duration_s, a.distance_m, a.elev_gain_m, "
+        "a.avg_hr, a.max_hr, a.calories, a.training_load, a.aerobic_te, a.anaerobic_te, a.device_id, "
+        "d.name AS device_name "
+        "FROM activity a LEFT JOIN device d ON d.device_id = a.device_id "
+        "WHERE a.date BETWEEN ? AND ? ORDER BY a.start_local", (first, last),
     ).fetchall()
-    return [dict(r) for r in rows]
+    out = []
+    for r in rows:
+        item = dict(r)
+        item["device"] = device_label(item.pop("device_id"), item.pop("device_name"))
+        out.append(item)
+    return out
+
+
+def day_devices(conn: sqlite3.Connection, dates: list[str], acts: list[dict[str, Any]]) -> dict[str, dict[str, list[str]]]:
+    """Montres de chaque jour : celles des activités, et la montre principale du statut d'entraînement.
+
+    Les deux peuvent différer (changement de montre : Garmin désigne déjà la nouvelle
+    comme principale alors qu'une activité est encore enregistrée avec l'ancienne).
+    """
+    out: dict[str, dict[str, list[str]]] = {}
+    for d in dates:
+        names: list[str] = []
+        for payload in _payloads(conn, "training_status", d, d):
+            recorded = payload.get("mostRecentTrainingStatus", {}).get("recordedDevices")                 if isinstance(payload, dict) and isinstance(payload.get("mostRecentTrainingStatus"), dict) else None
+            for dev in recorded if isinstance(recorded, list) else []:
+                name = dev.get("deviceName") if isinstance(dev, dict) else None
+                if isinstance(name, str) and name and not name.startswith("other.") and name not in names:
+                    names.append(name)
+        out[d] = {
+            "activities": list(dict.fromkeys(a["device"] for a in acts if a["date"] == d)),
+            "primary": names,
+        }
+    return out
 
 
 def day_view(conn: sqlite3.Connection, day: date) -> dict[str, Any]:
     first, last = day - timedelta(days=1), day + timedelta(days=1)
     dates = [(first + timedelta(days=i)).isoformat() for i in range(3)]
+    acts = activities(conn, dates[0], dates[-1])
     return {
         "date": day.isoformat(),
         "dates": dates,
         "daily": daily_values(conn, dates),
-        "activities": activities(conn, dates[0], dates[-1]),
+        "activities": acts,
+        "devices": day_devices(conn, dates, acts),
         "intraday": intraday(conn, first, last),
     }

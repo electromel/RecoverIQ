@@ -252,3 +252,64 @@ def test_migration_fills_events_from_raw_responses(tmp_path):
         ("2026-11-17 07:37:25", "2026-11-17", "AFTER_WAKEUP_RESET", 97, None),
         ("2026-11-17 17:34:30", "2026-11-17", "AFTER_POST_EXERCISE_RESET", 77, 1457),
     ]
+
+
+def test_migration_fills_devices_from_raw_responses(tmp_path):
+    import json
+    import sqlite3
+
+    from recoveriq.db import database
+
+    path = tmp_path / "old.db"
+    conn = sqlite3.connect(path)
+    conn.executescript((Path(database.__file__).parent / "schema.sql").read_text("utf-8"))
+    conn.executescript((Path(database.__file__).parent / "migration_002_ai.sql").read_text("utf-8"))
+    conn.execute("PRAGMA user_version=2")
+    conn.execute("INSERT INTO activity (activity_id, date, start_local) VALUES (1, '2024-01-01', '2024-01-01 10:00:00')")
+    conn.execute("INSERT INTO activity (activity_id, date, start_local) VALUES (2, '2015-01-01', '2015-01-01 10:00:00')")
+    raw = "INSERT INTO raw_response (fetcher, start_date, end_date, fetched_at, outcome, payload) VALUES (?, ?, ?, 'x', 'ok', ?)"
+    conn.execute(raw, ("activities", "2024-01-01", "2024-01-31", json.dumps([
+        {"activityId": 1, "deviceId": 398}, {"activityId": 2}])))
+    status = lambda name: json.dumps({"mostRecentTrainingStatus": {"recordedDevices": [{"deviceId": 398, "deviceName": name}]}})
+    conn.execute(raw, ("training_status", "2023-12-07", "2023-12-07", status("other.device")))
+    conn.execute(raw, ("training_status", "2023-12-08", "2023-12-08", status("fenix 5S Plus")))
+    conn.execute(raw, ("training_status", "2023-01-01", "2023-01-01", status("ancien nom")))
+    conn.commit()
+    conn.close()
+
+    database.init_db(path)
+    with connect() as c:
+        assert [tuple(r) for r in c.execute("SELECT activity_id, device_id FROM activity ORDER BY 1")] == [(1, 398), (2, None)]
+        assert [tuple(r) for r in c.execute("SELECT * FROM device")] == [(398, "fenix 5S Plus", "2023-12-08")]
+        # l'import historique remonte le temps : un nom plus ancien ne remplace pas le récent
+        repo.upsert_rows(c, "device", [{"device_id": 398, "name": "ancien nom", "date": "2023-01-01"}])
+        repo.upsert_rows(c, "device", [{"device_id": 398, "name": "fenix 5S Plus", "date": "2024-08-15"}])
+        assert tuple(c.execute("SELECT * FROM device").fetchone()) == (398, "fenix 5S Plus", "2024-08-15")
+
+
+def test_devices_view_and_day_devices(db):
+    from recoveriq.analytics import day as day_mod
+    from recoveriq.analytics.devices import devices_view
+
+    def act(i, d, device_id, kind="running"):
+        return {"activity_id": i, "date": d, "start_local": f"{d} 10:00:00", "type": kind,
+                "duration_s": 3600, "distance_m": 10000, "device_id": device_id}
+
+    with connect() as conn:
+        repo.upsert_rows(conn, "activity", [
+            act(1, "2015-05-01", None), act(2, "2019-01-14", 0, "rock_climbing"),
+            act(3, "2020-03-01", 398), act(4, "2021-03-01", 398, "hiking"), act(5, "2016-01-01", 344),
+        ])
+        repo.upsert_rows(conn, "device", [{"device_id": 398, "name": "fenix 5S Plus", "date": "2021-03-01"}])
+        view = devices_view(conn)
+        days = day_mod.day_view(conn, date(2020, 3, 1))
+    by_id = {r["device_id"]: r for r in view}
+    assert [r["device_id"] for r in view] == [None, 344, 0, 398]
+    assert by_id[398]["label"] == "fenix 5S Plus" and by_id[398]["activities"] == 2
+    assert by_id[398]["first_date"] == "2020-03-01" and by_id[398]["last_date"] == "2021-03-01"
+    assert by_id[398]["distance_m"] == 20000
+    assert by_id[344]["label"] == "Modèle inconnu"
+    assert by_id[0]["label"].startswith("Aucune montre") and by_id[None]["label"] == "Non indiquée par Garmin"
+    assert days["activities"][0]["device"] == "fenix 5S Plus"
+    assert days["devices"]["2020-03-01"] == {"activities": ["fenix 5S Plus"], "primary": []}
+    assert days["devices"]["2020-03-02"] == {"activities": [], "primary": []}

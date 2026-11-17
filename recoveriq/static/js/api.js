@@ -36,6 +36,7 @@ export const api = {
   training: (period) => request("GET", `/api/training?${q(period)}`),
   activities: (period) => request("GET", `/api/activities?${q(period)}`),
   correlations: (period) => request("GET", `/api/correlations?${q(period)}`),
+  devices: () => request("GET", "/api/devices"),
   // Analyse IA
   aiSettings: () => request("GET", "/api/ai/settings"),
   aiSaveSettings: (body) => request("PUT", "/api/ai/settings", body),
@@ -57,4 +58,5 @@ export const exportUrl = {
   training: (period) => `/api/export/training.csv?${q(period)}`,
   activities: (period) => `/api/export/activities.csv?${q(period)}`,
   correlations: (period) => `/api/export/correlations.csv?${q(period)}`,
+  devices: () => "/api/export/devices.csv",
 };

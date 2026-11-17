@@ -183,7 +183,16 @@ def parse_training_status(payload: Any, date: str) -> Rows:
             })
 
     acwr = _num(_get(acute, "dailyAcuteChronicWorkloadRatio"))
+    # Nom des montres (la liste des activités ne donne que leur identifiant).
+    recorded = _get(payload, "mostRecentTrainingStatus", "recordedDevices")
+    devices = [
+        {"device_id": d["deviceId"], "name": d["deviceName"], "date": date}
+        for d in (recorded if isinstance(recorded, list) else [])
+        if isinstance(d, dict) and isinstance(d.get("deviceId"), int) and not isinstance(d.get("deviceId"), bool)
+        and isinstance(d.get("deviceName"), str) and d["deviceName"] and not d["deviceName"].startswith("other.")
+    ]
     return {
+        "device": devices,
         "daily_training_status": _row(
             date,
             _meta=("paused",),
@@ -385,6 +394,7 @@ def parse_activities(payload: Any, start: str, end: str) -> Rows:
             continue
         rows.append({
             "activity_id": activity_id,
+            "device_id": _int(_get(a, "deviceId")),
             "date": start_local[:10],
             "start_local": start_local,
             "type": _str(_get(a, "activityType", "typeKey")),

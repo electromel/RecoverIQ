@@ -8,6 +8,7 @@ const ROUTES = {
   day: () => import("./pages/day.js"),
   training: () => import("./pages/training.js"),
   activities: () => import("./pages/activities.js"),
+  devices: () => import("./pages/devices.js"),
   correlations: () => import("./pages/correlations.js"),
   sync: () => import("./pages/sync.js"),
   ai: () => import("./pages/ai.js"),

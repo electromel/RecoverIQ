@@ -127,3 +127,17 @@ def test_ranges():
         "activityTrainingLoad": 110.0,
     }, {"activityId": None}], D, D)["activity"]
     assert len(acts) == 1 and acts[0]["type"] == "running" and acts[0]["date"] == D
+
+
+def test_devices_from_training_status_and_activities():
+    rows = parsers.parse_training_status({"mostRecentTrainingStatus": {"recordedDevices": [
+        {"deviceId": 348, "deviceName": "Forerunner 955 Solar"},
+        {"deviceId": 398, "deviceName": "other.device"},   # nom générique : ignoré
+        {"deviceName": "sans identifiant"},
+    ]}}, D)
+    assert rows["device"] == [{"device_id": 348, "name": "Forerunner 955 Solar", "date": D}]
+    acts = parsers.parse_activities([
+        {"activityId": 1, "startTimeLocal": f"{D} 10:00:00", "deviceId": 348},
+        {"activityId": 2, "startTimeLocal": f"{D} 12:00:00"},
+    ], D, D)["activity"]
+    assert [a["device_id"] for a in acts] == [348, None]

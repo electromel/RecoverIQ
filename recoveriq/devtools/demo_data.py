@@ -81,6 +81,7 @@ def populate(conn: sqlite3.Connection, days: int, today: date, seed: int = 42) -
                 "duration_s": session_load * 30.0, "distance_m": session_load * 80.0,
                 "elev_gain_m": session_load * 2.0, "avg_hr": 145.0, "max_hr": 172.0,
                 "training_load": session_load, "aerobic_te": 3.2, "anaerobic_te": 1.1,
+                "device_id": 3_400_000_002 if i < days // 2 else 3_400_000_001,   # A puis B
             }])
             end = (datetime.fromisoformat(f"{iso} 07:00:00") + timedelta(seconds=session_load * 30.0 + 20))
             repo.upsert_rows(conn, "readiness_event", [{
@@ -89,6 +90,10 @@ def populate(conn: sqlite3.Connection, days: int, today: date, seed: int = 42) -
                 "recovery_time_min": int(session_load * 12),
             }])
         prev_stress = stress
+    repo.upsert_rows(conn, "device", [
+        {"device_id": 3_400_000_001, "name": "Montre de démonstration A", "date": today.isoformat()},
+        {"device_id": 3_400_000_002, "name": "Montre de démonstration B", "date": today.isoformat()},
+    ])
     for table in ("daily_sleep", "daily_hrv", "daily_body_battery", "activity"):
         repo.touch_availability(conn, table, [today.isoformat()])
 
