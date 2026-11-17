@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "recoveriq"
+version = "0.3.0"
+description = "Tableau de bord local de récupération et d'entraînement à partir de Garmin Connect"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    # Version figée : la bibliothèque évolue vite et son API change entre versions mineures.
+    "garminconnect==0.3.2",
+    "fastapi>=0.115,<1",
+    "uvicorn[standard]>=0.30,<1",
+    "keyring>=25,<26",
+    "apscheduler>=3.10,<4",
+    # Statistiques (moyennes mobiles, lignes de base, corrélations).
+    "pandas>=2.2",
+    "numpy>=2",
+    "scipy>=1.14",
+    # Appels HTTP aux fournisseurs d'IA (aucun SDK propriétaire).
+    "httpx>=0.27,<1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+include = ["recoveriq*"]
+
+[tool.setuptools.package-data]
+recoveriq = ["db/*.sql", "static/**/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

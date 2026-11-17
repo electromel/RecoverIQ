@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+# Données applicatives : %USERPROFILE%\.recoveriq, jamais dans le dépôt.
+# data/ contient la base de démonstration locale.
+data/
+# Garde-fous : aucune base, aucun token, aucun journal ne doit être versionné.
+*.db
+*.db-wal
+*.db-shm
+*.bin
+*.log
+.claude/settings.local.json

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Icône RecoverIQ : cœur « rechargé » (récupération + énergie). -->
+  <rect width="100" height="100" rx="22" fill="#0F6E56"/>
+  <path d="M50 80 C18 58 16 34 31 26 C42 20 50 29 50 35 C50 29 58 20 69 26 C84 34 82 58 50 80Z" fill="#FFFFFF"/>
+  <path d="M54 33 L41 53 L50 53 L46 68 L61 46 L52 46 Z" fill="#0F6E56"/>
+</svg>
