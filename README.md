@@ -68,6 +68,8 @@ la page.
 Chaque vue a un sélecteur de période (30 j, 90 j, 1 an, tout) et un bouton **Exporter CSV**.
 Sur tous les graphiques temporels : glisser pour se déplacer dans le temps, molette pour zoomer,
 double-clic pour revenir à la vue complète (dans le détail d'un jour, les graphiques bougent ensemble).
+Dans les vues Indicateurs et Charge d'entraînement, la période fixe la plage affichée au départ et les
+statistiques, mais tout l'historique est chargé : on peut glisser au-delà de la période sans zoomer.
 Le CSV utilise le séparateur `;` et l'UTF-8 avec BOM : il s'ouvre directement dans Excel.
 
 **Définitions statistiques :**

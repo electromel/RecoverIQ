@@ -1,6 +1,6 @@
 // Vue charge d'entraînement : aiguë vs chronique, ratio et zones, focus de charge, volume hebdo.
 import { api, exportUrl } from "../api.js";
-import { colors, timeChart } from "../charts.js";
+import { colors, timeChart, viewFrom } from "../charts.js";
 import {
   escapeHtml, exportLink, fmtDate, fmtNum, focusFeedbackLabel, loadPref, periodSelector, trainingStatusLabel,
   latestOnly, STALE,
@@ -49,9 +49,14 @@ export async function render(view, _params, ctx) {
   let charts = [];
   ctx.onCleanup(() => charts.forEach((c) => c.destroy()));
 
+  // Historique complet pour les courbes ; la période fixe la vue de départ et les synthèses.
+  let history = null;
+
   async function draw() {
-    const data = await latest(api.training(period));
-    if (data === STALE || !ctx.isCurrent()) return;
+    const result = await latest(Promise.all([api.training(period), history ?? api.training("all")]));
+    if (result === STALE || !ctx.isCurrent()) return;
+    const [data, all] = result;
+    history = all;
     charts.forEach((c) => c.destroy());
     charts = [];
 
@@ -94,31 +99,36 @@ export async function render(view, _params, ctx) {
         <div class="chart-box small"><canvas id="volume-chart" role="img" aria-label="Volume hebdomadaire"></canvas></div>
       </div>`;
 
-    const dates = data.daily.map((d) => d.date);
-    const col = (k) => data.daily.map((d) => d[k]);
+    const dates = all.daily.map((d) => d.date);
+    const col = (k) => all.daily.map((d) => d[k]);
+    const dailyView = viewFrom(dates, data.daily[0].date);
     charts.push(timeChart(body.querySelector("#load-chart"), dates, [
       { label: "Plage chronique basse", data: col("chronic_min"), color: "transparent", kind: "band", hideInLegend: true },
       { label: "Plage optimale Garmin", data: col("chronic_max"), color: c.band, kind: "band", fillTo: "-1" },
       { label: "Charge aiguë", data: col("acute_load"), color: c.ma7 },
       { label: "Charge chronique", data: col("chronic_load"), color: c.value },
-    ]));
+    ], { view: dailyView }));
 
     const acwr = col("acwr");
     const maxAcwr = Math.max(2, ...acwr.filter((v) => v !== null));
     charts.push(timeChart(body.querySelector("#acwr-chart"), dates, [
-      { label: "Ratio A/C", data: acwr, color: c.value, points: dates.length <= 120 },
+      { label: "Ratio A/C", data: acwr, color: c.value, points: true },
     ], {
+      view: dailyView,
       decimals: 2,
       y: { min: 0, max: Math.ceil(maxAcwr * 10) / 10 },
       zones: data.zones.map((z) => ({ min: z.min, max: z.max, color: zoneColor(c, z.id) })),
     }));
 
-    const weeks = data.weekly_volume;
-    if (weeks.length) {
+    const weeks = all.weekly_volume;
+    if (data.weekly_volume.length) {
       charts.push(timeChart(body.querySelector("#volume-chart"), weeks.map((w) => w.week), [
         { label: "Heures", data: weeks.map((w) => w.hours), color: c.value, kind: "bar" },
         { label: "Charge", data: weeks.map((w) => w.load), color: c.ma7, yAxisID: "y2", points: true },
-      ], { decimals: 1, y: { title: { display: true, text: "h" } }, y2: { title: { display: true, text: "Charge" } } }));
+      ], {
+        decimals: 1, y: { title: { display: true, text: "h" } }, y2: { title: { display: true, text: "Charge" } },
+        view: viewFrom(weeks.map((w) => w.week), data.weekly_volume[0].week),
+      }));
     } else {
       body.querySelector("#volume-chart").parentElement.innerHTML = `<p class="muted">Aucune activité sur la période.</p>`;
     }

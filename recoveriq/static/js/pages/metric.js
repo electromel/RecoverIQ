@@ -1,6 +1,6 @@
 // Vue par indicateur : historique, moyennes mobiles 7 j / 28 j, bande de normalité.
 import { api, exportUrl } from "../api.js";
-import { colors, timeChart } from "../charts.js";
+import { colors, timeChart, viewFrom } from "../charts.js";
 import {
   escapeHtml, exportLink, fmtDate, fmtSigned, fmtValue, loadPref, periodSelector,
   latestOnly, STALE,
@@ -59,17 +59,23 @@ export async function render(view, params, ctx) {
   chartCard.className = "card";
   chartCard.innerHTML = `<div class="chart-box"><canvas role="img"></canvas></div>
     <p class="small muted">Cliquer sur une mesure (point bleu) ouvre le détail des 3 jours autour.
-    Glisser pour se déplacer dans le temps, molette pour zoomer, double-clic pour revenir à la vue complète.</p>
+    La période choisie fixe la vue de départ et les statistiques ; tout l'historique reste accessible :
+    glisser pour se déplacer dans le temps, molette pour zoomer, double-clic pour voir tout l'historique.</p>
     <p class="small muted">Bande de normalité : moyenne des 30 jours précédents ± 1 écart type (au moins 10 valeurs).
     Les jours sans mesure ne sont pas interpolés.</p>`;
   view.append(head, tiles, chartCard);
 
   let chart = null;
   ctx.onCleanup(() => chart?.destroy());
+  // Historique complet (courbe) chargé une fois ; la période ne sert qu'aux statistiques
+  // et à la plage affichée au départ.
+  let history = null;
 
   async function draw() {
-    const data = await latest(api.series(key, period));
-    if (data === STALE || !ctx.isCurrent()) return;
+    const result = await latest(Promise.all([api.series(key, period), history ?? api.series(key, "all")]));
+    if (result === STALE || !ctx.isCurrent()) return;
+    const [data, all] = result;
+    history = all;
     const m = data.meta;
     title.textContent = m.label;
     chart?.destroy();
@@ -98,19 +104,20 @@ export async function render(view, params, ctx) {
     ].join("");
 
     const c = colors();
-    const dates = data.points.map((p) => p.date);
-    const col = (name) => data.points.map((p) => p[name]);
+    const dates = all.points.map((p) => p.date);
+    const col = (name) => all.points.map((p) => p[name]);
     const canvas = chartCard.querySelector("canvas");
     canvas.setAttribute("aria-label", `${m.label} : historique, moyennes mobiles et bande de normalité`);
     chart = timeChart(canvas, dates, [
       { label: "Bande basse", data: col("band_low"), color: "transparent", kind: "band", hideInLegend: true },
       { label: "Bande de normalité", data: col("band_high"), color: c.band, kind: "band", fillTo: "-1" },
       { label: "Ligne de base 30 j", data: col("baseline"), color: c.baseline, dashed: true, width: 1.5, spanGaps: false },
-      { label: m.label, data: col("value"), color: c.value, points: true, width: 1.2, spanGaps: false, showLine: dates.length <= 120, clickable: true },
+      { label: m.label, data: col("value"), color: c.value, points: true, width: 1.2, spanGaps: false, showLine: "auto", clickable: true },
       { label: "Moyenne 7 j", data: col("ma7"), color: c.ma7, width: 2 },
       { label: "Moyenne 28 j", data: col("ma28"), color: c.ma28, width: 2 },
     ], {
       decimals: m.decimals,
+      view: viewFrom(dates, data.points[0].date),
       onPointClick: (iso) => { location.hash = `#/day/${iso}/${encodeURIComponent(key)}`; },
     });
   }

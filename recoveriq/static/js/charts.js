@@ -104,7 +104,8 @@ const panZoomPlugin = {
   afterInit(chart, _args, opts) {
     if (!opts.enabled || !opts.bounds) return;
     const canvas = chart.canvas;
-    const st = { opts, view: null, drag: null, dragged: false };
+    // Vue initiale éventuelle (ex. 30 derniers jours d'un historique complet).
+    const st = { opts, view: opts.view ? { ...opts.view } : null, drag: null, dragged: false };
     chart.$panZoom = st;
     const current = () => st.view ?? opts.bounds;
     // Position dans le canevas (en pixels CSS, comme chartArea).
@@ -270,7 +271,7 @@ export function calendarTicks(dates) {
  * (un axe par catégories saute d'une date à l'autre). Les graduations sont recalculées
  * sur la plage visible : passer de 1 an à 3 semaines ramène des étiquettes journalières.
  */
-function dateAxis(dates, bounds) {
+function dateAxis(dates, range) {
   let cacheKey = null;
   let labels = new Map();
   const plan = (scale) => {
@@ -293,16 +294,37 @@ function dateAxis(dates, bounds) {
   };
   return {
     type: "linear",
-    min: bounds.min,
-    max: bounds.max,
+    min: range.min,
+    max: range.max,
     afterBuildTicks: (scale) => { scale.ticks = [...plan(scale).keys()].map((value) => ({ value })); },
     ticks: { autoSkip: false, maxRotation: 0, callback: (value) => labels.get(value) ?? "" },
     grid: { display: true },
   };
 }
 
+const visibleDays = (chart) => {
+  const x = chart.options.scales.x;
+  return (x.max ?? 0) - (x.min ?? 0);
+};
+
+// Courbe reliant les mesures seulement quand la plage visible est courte (≤ 120 jours) :
+// au-delà, le nuage de points reste lisible, une ligne brisée non.
+const autoShowLinePlugin = {
+  id: "autoShowLine",
+  beforeUpdate(chart) {
+    const show = visibleDays(chart) <= 120;
+    for (const ds of chart.data.datasets) if (ds.autoShowLine) ds.showLine = show;
+  },
+};
+
+/** Indices de la plage [premier jour, fin] : vue initiale d'un historique complet. */
+export function viewFrom(dates, firstIso) {
+  const i = dates.findIndex((d) => d >= firstIso);
+  return i > 0 ? { min: i, max: dates.length - 1 } : null;
+}
+
 /** Graphique temporel. ``series`` = [{label, data, color, kind: line|bar|band, dashed, fillTo, yAxisID, points}] */
-export function timeChart(canvas, dates, series, { decimals = 0, zones = null, y = {}, y2 = null, onPointClick = null } = {}) {
+export function timeChart(canvas, dates, series, { decimals = 0, zones = null, y = {}, y2 = null, onPointClick = null, view = null } = {}) {
   configure();
   const datasets = series.map((s) => {
     const base = {
@@ -321,14 +343,19 @@ export function timeChart(canvas, dates, series, { decimals = 0, zones = null, y
     }
     return {
       ...base, type: "line", borderWidth: s.width ?? 2, borderDash: s.dashed ? [5, 4] : [],
-      pointRadius: s.points ? (dates.length > 120 ? 1 : 2.5) : 0, pointHoverRadius: 4, tension: 0.25,
-      fill: false, showLine: s.showLine ?? true,
+      // Densité adaptée à la plage visible (et non à tout l'historique chargé).
+      pointRadius: s.points ? (ctx) => (visibleDays(ctx.chart) > 120 ? 1 : 2.5) : 0, pointHoverRadius: 4, tension: 0.25,
+      fill: false, showLine: s.showLine === "auto" ? true : (s.showLine ?? true), autoShowLine: s.showLine === "auto",
     };
   });
   // Barres : une demi-case de marge de chaque côté pour ne pas couper la première et la dernière.
   const pad = series.some((s) => s.kind === "bar") ? 0.5 : 0;
   const bounds = { min: -pad, max: Math.max(1, dates.length - 1) + pad };
-  const scales = { x: dateAxis(dates, bounds), y: { ...y, ticks: { callback: (v) => fmtNum(v, decimals) } } };
+  // ``view`` (indices de dates) : plage affichée au départ ; le reste de ``dates`` reste
+  // accessible en glissant ou en dézoomant.
+  const initial = view && (view.min > 0 || view.max < dates.length - 1)
+    ? { min: view.min - pad, max: view.max + pad } : null;
+  const scales = { x: dateAxis(dates, initial ?? bounds), y: { ...y, ticks: { callback: (v) => fmtNum(v, decimals) } } };
   if (y2) scales.y2 = { position: "right", grid: { display: false }, ...y2 };
   // Point cliquable (ex. mesure du jour) : le plus proche sous le curseur, hors glissement.
   const clickedPoint = (chart, event) => chart
@@ -337,6 +364,7 @@ export function timeChart(canvas, dates, series, { decimals = 0, zones = null, y
   return new Chart(canvas, {
     type: "line",
     data: { datasets },
+    plugins: [autoShowLinePlugin],
     options: {
       interaction: { mode: "index", intersect: false },
       scales,
@@ -350,7 +378,8 @@ export function timeChart(canvas, dates, series, { decimals = 0, zones = null, y
         chart.canvas.style.cursor = clickedPoint(chart, event) ? "pointer" : "";
       }),
       plugins: {
-        panZoom: { enabled: true, bounds, minRange: 6 },
+        // Zoom maximal : 6 dates, ou la vue de départ si elle est plus courte (ex. 4 semaines).
+        panZoom: { enabled: true, bounds, view: initial, minRange: Math.min(6, initial ? initial.max - initial.min : 6) },
         zones: { items: zones },
         legend: { labels: { boxWidth: 12, filter: (item, data) => !data.datasets[item.datasetIndex].hideInLegend } },
         tooltip: {
