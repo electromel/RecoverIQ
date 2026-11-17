@@ -61,44 +61,33 @@ const markersPlugin = {
 
 // --- Glisser pour se déplacer, molette pour zoomer --------------------------------
 //
-// Agit sur l'axe X uniquement. Axe « category » : min / max sont des indices de date ;
-// axe linéaire : des valeurs (ms epoch). La vue est gardée en flottants dans
-// chart.$panZoom.view pour que les petits pas de molette s'accumulent, puis arrondie
-// pour un axe par catégories. Double-clic : retour à la vue complète.
+// Agit sur l'axe X (linéaire) uniquement, entre les bornes ``bounds`` du graphique :
+// indices de date (graphiques journaliers) ou ms epoch (intra-journaliers). Les bornes
+// restent fractionnaires : le déplacement suit la souris au pixel près.
+// Double-clic : retour à la vue complète.
 
 const ZOOM_STEP = 1.25;
 const DRAG_THRESHOLD_PX = 4;
 
-function fullRange(chart, opts) {
-  if (opts.bounds) return { ...opts.bounds };
-  return { min: 0, max: Math.max(1, chart.data.labels.length - 1) };
-}
 
 function applyView(chart, view, { notify = true } = {}) {
   const st = chart.$panZoom;
   const opts = st.opts;
-  const full = fullRange(chart, opts);
+  const full = opts.bounds;
   const fullWidth = full.max - full.min;
   let { min, max } = view ?? full;
   let width = Math.max(max - min, Math.min(opts.minRange ?? 4, fullWidth));
   if (width >= fullWidth) {
     st.view = null;
-    if (opts.bounds) {
-      // Axe linéaire : la vue complète reste bornée à la fenêtre demandée.
-      chart.options.scales.x.min = full.min;
-      chart.options.scales.x.max = full.max;
-    } else {
-      delete chart.options.scales.x.min;
-      delete chart.options.scales.x.max;
-    }
+    chart.options.scales.x.min = full.min;
+    chart.options.scales.x.max = full.max;
   } else {
     const center = (min + max) / 2;
     min = Math.min(Math.max(center - width / 2, full.min), full.max - width);
     max = min + width;
     st.view = { min, max };
-    const round = opts.bounds ? (v) => v : Math.round;
-    chart.options.scales.x.min = round(min);
-    chart.options.scales.x.max = round(max);
+    chart.options.scales.x.min = min;
+    chart.options.scales.x.max = max;
   }
   chart.update("none");
   if (notify) opts.onChange?.(st.view);
@@ -113,11 +102,11 @@ const panZoomPlugin = {
   id: "panZoom",
   defaults: { enabled: false },
   afterInit(chart, _args, opts) {
-    if (!opts.enabled) return;
+    if (!opts.enabled || !opts.bounds) return;
     const canvas = chart.canvas;
     const st = { opts, view: null, drag: null, dragged: false };
     chart.$panZoom = st;
-    const current = () => st.view ?? fullRange(chart, opts);
+    const current = () => st.view ?? opts.bounds;
     // Position dans le canevas (en pixels CSS, comme chartArea).
     const pos = (e) => {
       const r = canvas.getBoundingClientRect();
@@ -276,15 +265,17 @@ export function calendarTicks(dates) {
 }
 
 /**
- * Axe X par dates (catégories). Les graduations sont recalculées sur la plage visible,
- * pour s'adapter au zoom : passer de 1 an à 3 semaines ramène des étiquettes journalières.
+ * Axe X par dates, continu : chaque date est placée à son indice (0, 1, 2…). Un axe
+ * linéaire accepte des bornes fractionnaires, ce qui rend le glisser et le zoom fluides
+ * (un axe par catégories saute d'une date à l'autre). Les graduations sont recalculées
+ * sur la plage visible : passer de 1 an à 3 semaines ramène des étiquettes journalières.
  */
-function dateAxis(dates) {
+function dateAxis(dates, bounds) {
   let cacheKey = null;
   let labels = new Map();
-  const labelFor = (scale, value) => {
-    const lo = Math.max(0, Math.round(scale.min));
-    const hi = Math.min(dates.length - 1, Math.round(scale.max));
+  const plan = (scale) => {
+    const lo = Math.max(0, Math.ceil(scale.min));
+    const hi = Math.min(dates.length - 1, Math.floor(scale.max));
     const key = `${lo}:${hi}`;
     if (key !== cacheKey) {
       cacheKey = key;
@@ -298,14 +289,14 @@ function dateAxis(dates) {
         for (let i = 0; i < visible.length; i += step) labels.set(lo + i, fmtShortDate(visible[i]));
       }
     }
-    return labels.get(value) ?? null;
+    return labels;
   };
   return {
-    type: "category",
-    // Toutes les catégories sont évaluées ; seules celles du plan reçoivent une étiquette.
-    // Renvoyer null masque à la fois l'étiquette et la ligne de grille correspondante.
-    // Pour un axe par catégories, la valeur du tick est l'indice de la date.
-    ticks: { autoSkip: false, maxRotation: 0, callback(value) { return labelFor(this, value); } },
+    type: "linear",
+    min: bounds.min,
+    max: bounds.max,
+    afterBuildTicks: (scale) => { scale.ticks = [...plan(scale).keys()].map((value) => ({ value })); },
+    ticks: { autoSkip: false, maxRotation: 0, callback: (value) => labels.get(value) ?? "" },
     grid: { display: true },
   };
 }
@@ -315,7 +306,7 @@ export function timeChart(canvas, dates, series, { decimals = 0, zones = null, y
   configure();
   const datasets = series.map((s) => {
     const base = {
-      label: s.label, data: s.data, borderColor: s.color, backgroundColor: s.color,
+      label: s.label, data: s.data.map((v, i) => ({ x: i, y: v ?? null })), borderColor: s.color, backgroundColor: s.color,
       yAxisID: s.yAxisID ?? "y", spanGaps: s.spanGaps ?? true, order: s.order ?? 0,
       hideInLegend: s.hideInLegend ?? false, clickable: Boolean(onPointClick && s.clickable),
       pointHitRadius: onPointClick && s.clickable ? 6 : 1,
@@ -334,15 +325,18 @@ export function timeChart(canvas, dates, series, { decimals = 0, zones = null, y
       fill: false, showLine: s.showLine ?? true,
     };
   });
-  const scales = { x: dateAxis(dates), y: { ...y, ticks: { callback: (v) => fmtNum(v, decimals) } } };
+  // Barres : une demi-case de marge de chaque côté pour ne pas couper la première et la dernière.
+  const pad = series.some((s) => s.kind === "bar") ? 0.5 : 0;
+  const bounds = { min: -pad, max: Math.max(1, dates.length - 1) + pad };
+  const scales = { x: dateAxis(dates, bounds), y: { ...y, ticks: { callback: (v) => fmtNum(v, decimals) } } };
   if (y2) scales.y2 = { position: "right", grid: { display: false }, ...y2 };
   // Point cliquable (ex. mesure du jour) : le plus proche sous le curseur, hors glissement.
   const clickedPoint = (chart, event) => chart
     .getElementsAtEventForMode(event, "nearest", { intersect: true }, false)
-    .find((el) => chart.data.datasets[el.datasetIndex].clickable && chart.data.datasets[el.datasetIndex].data[el.index] !== null);
+    .find((el) => chart.data.datasets[el.datasetIndex].clickable && chart.data.datasets[el.datasetIndex].data[el.index].y !== null);
   return new Chart(canvas, {
     type: "line",
-    data: { labels: dates, datasets },
+    data: { datasets },
     options: {
       interaction: { mode: "index", intersect: false },
       scales,
@@ -356,14 +350,14 @@ export function timeChart(canvas, dates, series, { decimals = 0, zones = null, y
         chart.canvas.style.cursor = clickedPoint(chart, event) ? "pointer" : "";
       }),
       plugins: {
-        panZoom: { enabled: true, minRange: 6 },
+        panZoom: { enabled: true, bounds, minRange: 6 },
         zones: { items: zones },
         legend: { labels: { boxWidth: 12, filter: (item, data) => !data.datasets[item.datasetIndex].hideInLegend } },
         tooltip: {
-          filter: (item) => item.raw !== null && !item.dataset.hideInLegend,
+          filter: (item) => item.parsed.y !== null && !item.dataset.hideInLegend,
           callbacks: {
             title: (items) => (items[0] ? new Date(`${dates[items[0].dataIndex]}T00:00:00`).toLocaleDateString("fr-CH") : ""),
-            label: (item) => `${item.dataset.label} : ${fmtNum(item.raw, decimals)}`,
+            label: (item) => `${item.dataset.label} : ${fmtNum(item.parsed.y, decimals)}`,
           },
         },
       },
