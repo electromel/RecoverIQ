@@ -38,7 +38,7 @@ def _metric(conn: sqlite3.Connection, key: str, today: date, sparkline: bool) ->
     s = SERIES_BY_KEY[key]
     raw = load(conn, s)
     out: dict[str, Any] = {"key": key, "label": s.label, "unit": s.unit, "decimals": s.decimals,
-                           "value": None, "date": None, "stale": False}
+                           "description": s.description, "value": None, "date": None, "stale": False}
     if raw.empty:
         out["available"] = False
         return out

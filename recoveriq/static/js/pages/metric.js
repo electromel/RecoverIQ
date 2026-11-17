@@ -21,6 +21,7 @@ function seriesSelect(catalog, current, onChange) {
     og.label = group;
     for (const s of items) {
       const opt = new Option(s.available ? s.label : `${s.label} (non disponible)`, s.key, false, s.key === current);
+      if (s.description) opt.title = s.description;
       og.append(opt);
     }
     select.append(og);
@@ -53,6 +54,9 @@ export async function render(view, params, ctx) {
   );
   head.append(title, toolbar);
 
+  const about = document.createElement("p");
+  about.className = "metric-about";
+
   const tiles = document.createElement("div");
   tiles.className = "stat-tiles";
   const chartCard = document.createElement("div");
@@ -64,7 +68,7 @@ export async function render(view, params, ctx) {
     glisser pour se déplacer dans le temps, molette pour zoomer, double-clic pour voir tout l'historique.</p>
     <p class="small muted">Bande de normalité : moyenne des 30 jours précédents ± 1 écart type (au moins 10 valeurs).
     Les jours sans mesure ne sont pas interpolés.</p>`;
-  view.append(head, tiles, chartCard);
+  view.append(head, about, tiles, chartCard);
 
   let chart = null;
   ctx.onCleanup(() => chart?.destroy());
@@ -79,6 +83,8 @@ export async function render(view, params, ctx) {
     history = all;
     const m = data.meta;
     title.textContent = m.label;
+    about.textContent = m.description ?? "";
+    about.hidden = !m.description;
     chart?.destroy();
     chart = null;
 

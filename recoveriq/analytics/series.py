@@ -118,6 +118,7 @@ def series_view(conn: sqlite3.Connection, key: str, period: str, today: date) ->
     meta = {
         "key": s.key, "label": s.label, "unit": s.unit, "group": s.group,
         "higher_is_better": s.higher_is_better, "decimals": s.decimals,
+        "description": s.description,
     }
     if raw.empty:
         return {"meta": meta, "available": False, "points": [], "stats": None}

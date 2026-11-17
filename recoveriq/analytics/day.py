@@ -175,7 +175,8 @@ def daily_values(conn: sqlite3.Connection, dates: list[str]) -> list[dict[str, A
         found = {r["date"]: r["v"] for r in rows}
         values = [None if found.get(d) is None else float(found[d]) * s.scale for d in dates]
         out.append({"key": s.key, "label": s.label, "unit": s.unit, "group": s.group,
-                    "decimals": s.decimals, "values": values})
+                    "decimals": s.decimals, "description": s.description,
+                    "values": values})
     return out
 
 

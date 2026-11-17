@@ -39,7 +39,9 @@ function cardHtml(card) {
   const secondary = card.secondary.filter((s) => s.available).map((s) => `
     <dt>${escapeHtml(s.label)}</dt><dd>${fmtValue(s.value, s.unit, s.decimals)}</dd>`).join("");
   return `
-    <a class="card metric-card" href="#/metric/${encodeURIComponent(m.key)}" title="Voir l'historique">
+    <a class="card metric-card" href="#/metric/${encodeURIComponent(m.key)}" title="${escapeHtml(m.description ? `${m.description}
+
+Cliquer pour voir l'historique.` : "Voir l'historique")}">
       <div class="page-head"><h3>${escapeHtml(card.title)}</h3>${when}</div>
       <div class="small muted">${escapeHtml(m.label)}</div>
       <div class="value">${valueHtml}</div>

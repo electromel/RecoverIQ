@@ -44,7 +44,7 @@ def catalog() -> dict[str, Any]:
     return {
         "periods": list(PERIODS),
         "series": [{"key": s.key, "label": s.label, "unit": s.unit, "group": s.group,
-                    "available": available[s.key]} for s in SERIES],
+                    "description": s.description, "available": available[s.key]} for s in SERIES],
     }
 
 

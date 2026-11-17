@@ -212,7 +212,7 @@ export async function render(view, params, ctx) {
     group = r.group;
     const cells = r.values.map((v, i) =>
       `<td class="num${i === selIdx ? " selected" : ""}">${fmtValue(v, r.unit, r.decimals)}</td>`).join("");
-    return `${groupRow}<tr><td><a href="#/metric/${encodeURIComponent(r.key)}">${escapeHtml(r.label)}</a></td>${cells}</tr>`;
+    return `${groupRow}<tr><td><a href="#/metric/${encodeURIComponent(r.key)}" title="${escapeHtml(r.description ?? "")}">${escapeHtml(r.label)}</a></td>${cells}</tr>`;
   }).join("");
   tableCard.innerHTML = `<h2>Valeurs journalières</h2>${rows
     ? `<table class="day-table"><thead><tr><th>Indicateur</th>${th}</tr></thead><tbody>${rows}</tbody></table>`

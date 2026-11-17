@@ -21,6 +21,11 @@ class Series:
     scale: float = 1.0
     decimals: int = 0
 
+    @property
+    def description(self) -> str:
+        """Explication de l'indicateur pour l'utilisateur (vide si aucune)."""
+        return DESCRIPTIONS.get(self.key, "")
+
 
 SERIES: tuple[Series, ...] = (
     # Body Battery
@@ -63,6 +68,91 @@ SERIES: tuple[Series, ...] = (
 )
 
 SERIES_BY_KEY = {s.key: s for s in SERIES}
+
+# Explication affichée avec chaque indicateur : ce qu'il mesure et comment le lire.
+DESCRIPTIONS: dict[str, str] = {
+    # Body Battery
+    "bb_at_wake": "Réserve d'énergie estimée par Garmin (0 à 100) au réveil, calculée à partir de la VFC, "
+                  "du stress, du sommeil et de l'activité. C'est le meilleur résumé de la récupération "
+                  "nocturne : au-dessus de 75 la nuit a bien rechargé, en dessous de 50 la récupération est incomplète.",
+    "bb_highest": "Valeur la plus haute du Body Battery dans la journée, en général atteinte au réveil. "
+                  "Elle indique jusqu'où la réserve d'énergie a pu remonter.",
+    "bb_lowest": "Valeur la plus basse du Body Battery dans la journée, en général atteinte le soir. "
+                 "Un minimum très bas signale une journée qui a beaucoup puisé dans les réserves.",
+    "bb_charged": "Points de Body Battery regagnés dans la journée (sommeil, repos, moments calmes). "
+                  "Plus le total est élevé, mieux le corps a récupéré.",
+    "bb_drained": "Points de Body Battery dépensés dans la journée par l'activité physique, le stress et l'éveil. "
+                  "Une forte décharge n'est pas mauvaise en soi (entraînement) mais doit être compensée par la recharge.",
+    "bb_sleep_charge": "Points de Body Battery regagnés pendant la nuit. Une recharge nocturne faible "
+                       "(sommeil court, alcool, maladie, entraînement tardif) annonce une journée avec moins de réserve.",
+    # Cœur
+    "hrv": "Variabilité de la fréquence cardiaque : variation de l'intervalle entre deux battements, "
+           "moyennée pendant le sommeil (RMSSD, en millisecondes). Une VFC élevée par rapport à votre "
+           "propre normale traduit un système nerveux reposé ; une baisse durable signale fatigue, stress, "
+           "maladie ou surentraînement. Les valeurs sont très individuelles : comparez-vous à vous-même.",
+    "hrv_weekly": "Moyenne de la VFC nocturne sur les 7 derniers jours, calculée par Garmin. "
+                  "Elle lisse les variations d'une nuit à l'autre et sert à situer votre statut VFC "
+                  "par rapport à votre plage de référence.",
+    "rhr": "Fréquence cardiaque la plus basse mesurée au repos sur la journée, en battements par minute. "
+           "Elle baisse quand la forme aérobie progresse ; une hausse de quelques battements au-dessus de "
+           "la normale peut signaler fatigue, déshydratation, alcool ou début de maladie.",
+    # Sommeil
+    "sleep_score": "Note Garmin de 0 à 100 qui combine durée, phases de sommeil, éveils et stress nocturne. "
+                   "90 et plus : excellent ; 80 à 89 : bon ; 60 à 79 : passable ; moins de 60 : médiocre.",
+    "sleep_duration": "Temps total passé à dormir, hors éveils. Pour un adulte, 7 à 9 heures sont recommandées ; "
+                      "les sportifs ont souvent besoin du haut de cette plage.",
+    "sleep_deep": "Temps passé en sommeil profond (lent), la phase la plus réparatrice physiquement : "
+                  "sécrétion d'hormone de croissance, réparation musculaire. Il représente en général 15 à 25 % "
+                  "de la nuit et se concentre en début de nuit.",
+    "sleep_light": "Temps passé en sommeil léger, la phase la plus longue de la nuit (environ la moitié). "
+                   "Elle fait la transition entre les autres phases ; sa durée n'est ni bonne ni mauvaise en soi.",
+    "sleep_rem": "Temps passé en sommeil paradoxal (REM), la phase des rêves, importante pour la mémoire, "
+                 "l'apprentissage et l'équilibre émotionnel. Il représente en général 20 à 25 % de la nuit "
+                 "et se concentre en fin de nuit.",
+    "sleep_awake": "Temps passé éveillé entre l'endormissement et le lever. Quelques minutes sont normales ; "
+                   "un éveil nocturne prolongé fragmente le sommeil et réduit la récupération.",
+    "resp_sleep": "Nombre moyen de respirations par minute pendant le sommeil. Il est stable d'une nuit à l'autre "
+                  "chez une même personne (souvent 12 à 20) : un écart net par rapport à votre normale peut "
+                  "signaler une maladie, l'altitude ou une forte fatigue.",
+    "spo2_sleep": "Saturation en oxygène du sang mesurée au poignet pendant le sommeil. Elle se situe "
+                  "habituellement entre 95 et 100 % ; des valeurs plus basses sont normales en altitude. "
+                  "La mesure optique est moins précise qu'un oxymètre médical.",
+    # Stress
+    "stress_avg": "Niveau de stress moyen de la journée (0 à 100), estimé par Garmin à partir de la VFC "
+                  "pendant les périodes sans activité. 0 à 25 : repos ; 26 à 50 : faible ; 51 à 75 : moyen ; "
+                  "76 à 100 : élevé. Il reflète la charge physiologique, pas seulement psychologique.",
+    "stress_high": "Temps passé en stress élevé (niveau 76 à 100) dans la journée. Des durées importantes "
+                   "et répétées limitent la recharge du Body Battery.",
+    "stress_rest": "Temps passé au repos (stress de 0 à 25), sommeil compris. Plus il est long, plus le corps "
+                   "a eu l'occasion de récupérer.",
+    # Récupération
+    "readiness": "Score Garmin de 0 à 100 qui indique si vous êtes prêt à vous entraîner intensément. "
+                 "Il combine sommeil, temps de récupération, VFC, charge aiguë et historique de stress. "
+                 "75 et plus : élevé ; 50 à 74 : modéré ; 25 à 49 : faible ; moins de 25 : très faible.",
+    "recovery_time": "Temps restant, estimé par Garmin, avant d'être pleinement récupéré pour un nouvel effort "
+                     "intense. Il augmente après chaque séance selon sa difficulté et diminue avec le repos "
+                     "et le sommeil.",
+    # Entraînement
+    "intensity": "Minutes d'activité modérée ou intense de la journée, les minutes intenses comptant double. "
+                 "L'OMS recommande au moins 150 minutes par semaine.",
+    "acute_load": "Charge d'entraînement des 7 derniers jours : somme pondérée de l'effet des séances "
+                  "(consommation d'oxygène post-exercice, EPOC). Elle représente la fatigue récente.",
+    "chronic_load": "Charge d'entraînement moyenne sur environ 4 semaines. Elle représente le niveau "
+                    "d'entraînement auquel le corps est habitué.",
+    "acwr": "Ratio entre charge aiguë (7 jours) et charge chronique (4 semaines). Entre 0,8 et 1,3 la charge "
+            "progresse de façon équilibrée ; au-dessus de 1,5 l'augmentation est brutale et le risque de "
+            "blessure plus élevé ; sous 0,8 l'entraînement diminue.",
+    # Forme
+    "vo2max": "Consommation maximale d'oxygène estimée par Garmin lors des courses avec GPS et cardio : "
+              "le principal indicateur de capacité aérobie. Elle évolue lentement, sur des semaines.",
+    "vo2max_cycling": "Consommation maximale d'oxygène estimée lors des sorties vélo avec capteur de puissance. "
+                      "Elle est souvent un peu inférieure à la VO2 max de course.",
+    "endurance": "Score Garmin d'endurance globale, calculé à partir de la VO2 max et du volume et de "
+                 "l'intensité de l'entraînement des dernières semaines, toutes activités confondues. "
+                 "Plus il est élevé, mieux vous tenez les efforts longs.",
+    "hill": "Score Garmin d'aptitude en montée (1 à 100), combinant l'endurance en montée (volume "
+            "de dénivelé) et la force en montée (performance sur les pentes raides).",
+}
 
 # Périodes du sélecteur (jours ; None = tout l'historique).
 PERIODS: dict[str, int | None] = {"30": 30, "90": 90, "365": 365, "all": None}
