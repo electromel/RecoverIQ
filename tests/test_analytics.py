@@ -181,3 +181,11 @@ def test_day_view_full_day_series_take_precedence(demo):
     assert intr["stress"] == [[1_000_000, 20.0]]
     assert intr["body_battery"][0] == [1_000_000, 80.0]
     assert intr["day_series"] == ["body_battery", "heart_rate", "stress"]
+
+
+def test_series_view_includes_garmin_zones(demo):
+    with connect() as conn:
+        readiness = series.series_view(conn, "readiness", "90", TODAY)
+        rhr = series.series_view(conn, "rhr", "90", TODAY)
+    assert readiness["zones"]["items"][0]["id"] == "risk"
+    assert rhr["zones"] is None

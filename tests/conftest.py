@@ -82,6 +82,10 @@ class FakeGarmin:
         self._log("activities", s, e)
         return []
 
+    def get_user_profile(self):
+        self._log("profile")
+        return {"userData": {"gender": "MALE", "birthDate": "1970-06-15"}}
+
     def count_activities(self):
         return 0
 

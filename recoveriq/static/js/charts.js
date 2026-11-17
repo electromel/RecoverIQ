@@ -11,23 +11,53 @@ export const colors = () => ({
   zone: {
     under: css("--c-zone-under"), optimal: css("--c-zone-optimal"),
     caution: css("--c-zone-caution"), risk: css("--c-zone-risk"),
+    good: css("--c-zone-good"), top: css("--c-zone-top"),
   },
 });
 
-// Plugin : bandes horizontales colorées (zones du ratio aiguë / chronique).
+// Plugin : plages colorées en fond (zones du ratio aiguë / chronique, plages Garmin).
+// ``min`` / ``max`` : nombre fixe, ``null`` = bord du graphique, ou tableau d'une valeur
+// par date (axe X en indices de date ; une entrée ``null`` = pas de plage ce jour-là).
 const zonesPlugin = {
   id: "zones",
   beforeDatasetsDraw(chart, _args, options) {
     const zones = options?.items;
     if (!zones?.length) return;
-    const { ctx, chartArea: area, scales: { y } } = chart;
+    const { ctx, chartArea: area, scales: { x, y } } = chart;
+    const fill = (left, right, lo, hi) => {
+      const top = Math.max(hi === null ? area.top : y.getPixelForValue(hi), area.top);
+      const bottom = Math.min(lo === null ? area.bottom : y.getPixelForValue(lo), area.bottom);
+      const l = Math.max(left, area.left);
+      const r = Math.min(right, area.right);
+      if (bottom > top && r > l) ctx.fillRect(l, top, r - l, bottom - top);
+    };
     ctx.save();
     for (const z of zones) {
-      const top = y.getPixelForValue(z.max ?? y.max);
-      const bottom = y.getPixelForValue(z.min);
       ctx.fillStyle = z.color;
-      ctx.fillRect(area.left, Math.max(top, area.top), area.right - area.left,
-        Math.min(bottom, area.bottom) - Math.max(top, area.top));
+      const daily = Array.isArray(z.min) || Array.isArray(z.max);
+      if (!daily) {
+        fill(area.left, area.right, z.min ?? null, z.max ?? null);
+        continue;
+      }
+      // Une colonne par date visible ; les dates consécutives de mêmes bornes sont regroupées.
+      const at = (b, i) => (Array.isArray(b) ? b[i] : (b ?? null));
+      const known = (b, i) => !Array.isArray(b) || (b[i] !== null && b[i] !== undefined);
+      const first = Math.max(0, Math.floor(x.min));
+      const last = Math.ceil(x.max);
+      let run = null;
+      const flush = () => {
+        if (run) fill(x.getPixelForValue(run.from - 0.5), x.getPixelForValue(run.to + 0.5), run.lo, run.hi);
+        run = null;
+      };
+      for (let i = first; i <= last; i++) {
+        if (!known(z.min, i) || !known(z.max, i)) { flush(); continue; }
+        const lo = at(z.min, i);
+        const hi = at(z.max, i);
+        if (run && run.lo === lo && run.hi === hi && run.to === i - 1) { run.to = i; continue; }
+        flush();
+        run = { from: i, to: i, lo, hi };
+      }
+      flush();
     }
     ctx.restore();
   },

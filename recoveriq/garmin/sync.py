@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Any
 
+from recoveriq.analytics.zones import SETTING_BIRTH_DATE, SETTING_GENDER
 from recoveriq.config import Settings
 from recoveriq.db import repository as repo
 from recoveriq.db.database import connect
@@ -231,6 +232,7 @@ class SyncService:
         if backfill_start:
             start = max(start, date.fromisoformat(backfill_start))
 
+        self._fetch_profile()
         day = today
         while day >= start:
             self._check_stop()
@@ -377,6 +379,19 @@ class SyncService:
             stats.errors += 1
             self._set_live(errors=stats.errors)
         return has_data
+
+    def _fetch_profile(self) -> None:
+        """Sexe et date de naissance (catégories VO2 max selon l'âge). Échec sans conséquence."""
+        self._set_live(current="Profil")
+        result = self.client.call("profil", lambda g: g.get_user_profile())
+        user = result.payload.get("userData") if result.outcome == "ok" and isinstance(result.payload, dict) else None
+        if not isinstance(user, dict):
+            return
+        with connect() as conn:
+            if user.get("gender") in ("MALE", "FEMALE"):
+                repo.set_setting(conn, SETTING_GENDER, user["gender"])
+            if isinstance(user.get("birthDate"), str) and len(user["birthDate"]) >= 10:
+                repo.set_setting(conn, SETTING_BIRTH_DATE, user["birthDate"][:10])
 
     # ------------------------------------------------------------------
     # Utilitaires

@@ -148,7 +148,10 @@ def series_view(conn: sqlite3.Connection, key: str, period: str, today: date) ->
         "max": clean(v.max(), d),
         "trend_per_week": clean(trend_per_week(v), d + 1),
     }
-    return {"meta": meta, "available": True, "points": points, "stats": stats}
+    from recoveriq.analytics.zones import zones_for   # import local : zones → training → series
+
+    zones = zones_for(conn, key, [pt["date"] for pt in points])
+    return {"meta": meta, "available": True, "points": points, "stats": stats, "zones": zones}
 
 
 def compare_to_baseline(values: pd.Series, at: pd.Timestamp, higher_is_better: bool | None) -> dict[str, Any]:

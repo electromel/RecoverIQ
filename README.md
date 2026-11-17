@@ -59,7 +59,7 @@ la page.
 | Vue | Contenu |
 |---|---|
 | **Accueil** | Cartes du jour : Body Battery, VFC, Training Readiness, sommeil, stress. Chaque valeur est comparée à la moyenne des 30 jours précédents, avec son écart et l'évolution sur 14 jours |
-| **Indicateurs** | Une courbe par indicateur (30 séries) : valeurs, moyennes mobiles 7 j et 28 j, bande de normalité, statistiques et tendance. Un clic sur une mesure (point bleu) ouvre son détail |
+| **Indicateurs** | Une courbe par indicateur (30 séries) : valeurs, moyennes mobiles 7 j et 28 j, bande de normalité, statistiques et tendance. En fond, les plages de couleur Garmin quand elles existent : statut VFC (selon la ligne de base personnelle du jour), catégories VO2 max (selon l'âge et le sexe du profil Garmin), score de sommeil, Training Readiness, stress, Body Battery, charge aiguë et ratio aiguë / chronique. Un clic sur une mesure (point bleu) ouvre son détail |
 | **Détail d'un jour** | Veille, jour et lendemain : courbes minute par minute tirées des réponses Garmin déjà importées (FC, stress et Body Battery sur 24 h ; VFC, SpO2, respiration et phases pendant le sommeil). Garmin ne fournit ce détail que pendant environ 4 à 5 mois : il est conservé ici dès qu'il a été synchronisé. Après une mise à jour qui ajoute une série, l'import historique se relance seul au démarrage pour la remonter, activités de ces 3 jours et valeurs journalières de tous les indicateurs |
 | **Charge d'entraînement** | Charge aiguë vs chronique, ratio A/C avec zones, focus de charge vs plages cibles, frise du statut, volume hebdomadaire |
 | **Activités** | Liste filtrable par type, avec totaux |

@@ -58,6 +58,7 @@ export async function render(view, params, ctx) {
   const chartCard = document.createElement("div");
   chartCard.className = "card";
   chartCard.innerHTML = `<div class="chart-box"><canvas role="img"></canvas></div>
+    <div class="zone-legend"></div>
     <p class="small muted">Cliquer sur une mesure (point bleu) ouvre le détail des 3 jours autour.
     La période choisie fixe la vue de départ et les statistiques ; tout l'historique reste accessible :
     glisser pour se déplacer dans le temps, molette pour zoomer, double-clic pour voir tout l'historique.</p>
@@ -104,6 +105,13 @@ export async function render(view, params, ctx) {
     ].join("");
 
     const c = colors();
+    // Plages Garmin en fond (vert / orange / rouge…), avec leur légende.
+    const zones = all.zones?.items ?? [];
+    const seen = new Set();
+    const legendItems = zones.filter((z) => !z.hideInLegend && !seen.has(z.label) && seen.add(z.label));
+    chartCard.querySelector(".zone-legend").innerHTML = all.zones ? `<div class="legend-inline">${legendItems.map((z) =>
+      `<span><i style="background:${c.zone[z.id]};border:1px solid var(--border)"></i>${escapeHtml(z.label)}</span>`).join("")}</div>
+      <p class="small muted" style="margin:4px 0 0">${escapeHtml(all.zones.note)}</p>` : "";
     const dates = all.points.map((p) => p.date);
     const col = (name) => all.points.map((p) => p[name]);
     const canvas = chartCard.querySelector("canvas");
@@ -117,6 +125,7 @@ export async function render(view, params, ctx) {
       { label: "Moyenne 28 j", data: col("ma28"), color: c.ma28, width: 2 },
     ], {
       decimals: m.decimals,
+      zones: zones.map((z) => ({ min: z.min, max: z.max, color: c.zone[z.id] })),
       view: viewFrom(dates, data.points[0].date),
       onPointClick: (iso) => { location.hash = `#/day/${iso}/${encodeURIComponent(key)}`; },
     });
