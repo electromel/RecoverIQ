@@ -62,7 +62,7 @@ la page.
 | **Indicateurs** | Une courbe par indicateur (30 séries) : valeurs, moyennes mobiles 7 j et 28 j, bande de normalité, statistiques et tendance. En fond, les plages de couleur Garmin quand elles existent : statut VFC (selon la ligne de base personnelle du jour), catégories VO2 max (selon l'âge et le sexe du profil Garmin), score de sommeil, Training Readiness, stress, Body Battery, charge aiguë et ratio aiguë / chronique. Un clic sur une mesure (point bleu) ouvre son détail |
 | **Détail d'un jour** | Veille, jour et lendemain : courbes minute par minute tirées des réponses Garmin déjà importées (FC, stress et Body Battery sur 24 h ; VFC, SpO2, respiration et phases pendant le sommeil). Garmin ne fournit ce détail que pendant environ 4 à 5 mois : il est conservé ici dès qu'il a été synchronisé. Après une mise à jour qui ajoute une série, l'import historique se relance seul au démarrage pour la remonter, activités de ces 3 jours et valeurs journalières de tous les indicateurs |
 | **Charge d'entraînement** | Charge aiguë vs chronique, ratio A/C avec zones, focus de charge vs plages cibles, frise du statut, volume hebdomadaire |
-| **Activités** | Liste filtrable par type, avec totaux |
+| **Activités** | Liste filtrable par type, avec totaux. Un clic sur un en-tête trie la colonne (par défaut : date, plus récente d'abord). La colonne **Récupération** donne le temps de récupération estimé par Garmin juste après la séance : c'est le relevé Training Readiness « après effort » qui suit l'activité (au plus 3 h après la fin et avant l'activité suivante) |
 | **Corrélations** | Sommeil vs VFC et Body Battery du lendemain, stress vs recharge nocturne, VO2 max vs volume, semaine vs week-end |
 | **Synchronisation** | Connexion Garmin, état de l'import, données reçues par indicateur, journal |
 
@@ -218,7 +218,7 @@ recoveriq/
 ├── metrics.py           Catalogue des indicateurs
 ├── scheduler.py         APScheduler : synchronisation quotidienne, rapport IA hebdomadaire
 ├── main.py              Application FastAPI (démarrage / arrêt des services)
-├── db/                  schema.sql + migration_002_ai.sql, connexion + migrations, repository, migration 0.1 → 0.2
+├── db/                  schema.sql + migrations (002 IA, 003 relevés Readiness), connexion + migrations, repository, migration 0.1 → 0.2
 ├── analytics/
 │   ├── catalog.py       Séries affichables (ajouter une courbe = une ligne)
 │   ├── series.py        Moyennes mobiles, ligne de base, bande de normalité, tendance
@@ -254,7 +254,7 @@ recoveriq/
 | `get_hrv_data` | jour | VFC |
 | `get_training_status` | jour | Charge aiguë et chronique, ACWR, focus de charge, statut, VO2 max |
 | `get_sleep_data` | jour | Sommeil, respiration et SpO2 nocturnes, recharge nocturne de la Body Battery |
-| `get_training_readiness` | jour | Readiness (score du matin et dernier score), temps de récupération |
+| `get_training_readiness` | jour | Readiness (score du matin et dernier score), temps de récupération, relevés horodatés (récupération après chaque activité) |
 | `get_body_battery` | plage | Body Battery (charge, décharge, min, max) |
 | `get_hill_score` | plage | Hill Score |
 | `get_endurance_score` | plage, puis jour | Endurance Score : moyenne hebdomadaire pour l'historique, valeur exacte en synchro quotidienne |

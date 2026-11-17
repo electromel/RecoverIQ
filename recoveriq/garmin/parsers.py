@@ -269,12 +269,28 @@ def _epoch_ms_to_iso(value: Any) -> str | None:
     return datetime.fromtimestamp(value / 1000, tz=timezone.utc).isoformat(timespec="seconds")
 
 
+def _local_timestamp(value: Any) -> str | None:
+    """'2026-11-17T17:34:30.0' → '2026-11-17 17:34:30' (même format que activity.start_local)."""
+    text = _str(value)
+    return text[:19].replace("T", " ") if text and len(text) >= 19 else None
+
+
 def parse_training_readiness(payload: Any, date: str) -> Rows:
-    """Plusieurs scores par jour : on garde celui du réveil et le dernier de la journée."""
-    entries = payload if isinstance(payload, list) else [payload] if isinstance(payload, dict) else []
-    entries = [e for e in entries if isinstance(e, dict) and _num(e.get("score")) is not None]
+    """Plusieurs scores par jour : on garde celui du réveil et le dernier de la journée.
+
+    Chaque relevé est aussi conservé dans ``readiness_event`` : celui qui suit une activité
+    (AFTER_POST_EXERCISE_RESET) donne la durée de récupération après l'effort.
+    """
+    raw = payload if isinstance(payload, list) else [payload] if isinstance(payload, dict) else []
+    raw = [e for e in raw if isinstance(e, dict)]
+    events = [
+        {"timestamp_local": ts, "date": date, "context": _str(e.get("inputContext")),
+         "score": _int(e.get("score")), "recovery_time_min": _int(e.get("recoveryTime"))}
+        for e in raw if (ts := _local_timestamp(e.get("timestampLocal")))
+    ]
+    entries = [e for e in raw if _num(e.get("score")) is not None]
     if not entries:
-        return {"daily_readiness": []}
+        return {"daily_readiness": [], "readiness_event": events}
     entries.sort(key=lambda e: str(e.get("timestamp") or e.get("timestampLocal") or ""))
     morning = next((e for e in entries if e.get("inputContext") == "AFTER_WAKEUP_RESET"), entries[0])
     latest = entries[-1]
@@ -293,7 +309,8 @@ def parse_training_readiness(payload: Any, date: str) -> Rows:
             sleep_history_factor_pct=_num(morning.get("sleepHistoryFactorPercent")),
             latest_score=_int(latest.get("score")),
             latest_recovery_time_min=_int(latest.get("recoveryTime")),
-        )
+        ),
+        "readiness_event": events,
     }
 
 

@@ -115,6 +115,26 @@ def weekly_volume(conn: sqlite3.Connection, start: date | None) -> list[dict[str
 def activities_list(conn: sqlite3.Connection, period: str, today: date) -> list[dict[str, Any]]:
     where, params = _where_period(period_start(period, today))
     return [dict(r) for r in conn.execute(
+        f"WITH a AS ({_ACTIVITY_WINDOW}) "
         f"SELECT activity_id, date, start_local, type, name, duration_s, distance_m, elev_gain_m, "
-        f"avg_hr, max_hr, training_load, aerobic_te, anaerobic_te FROM activity {where} "
-        f"ORDER BY start_local DESC", params)]
+        f"avg_hr, max_hr, training_load, aerobic_te, anaerobic_te, ({_RECOVERY_AFTER}) AS recovery_time_min "
+        f"FROM a {where} ORDER BY start_local DESC", params)]
+
+
+# Fin de chaque activité et début de la suivante (sur tout l'historique, avant filtrage).
+_ACTIVITY_WINDOW = (
+    "SELECT *, datetime(start_local, '+' || CAST(COALESCE(duration_s, 0) AS INTEGER) || ' seconds') AS end_local, "
+    "LEAD(start_local) OVER (ORDER BY start_local) AS next_start FROM activity"
+)
+
+# Durée de récupération après l'effort : Garmin crée un relevé Training Readiness
+# AFTER_POST_EXERCISE_RESET quelques secondes après l'enregistrement de l'activité.
+# On prend le premier relevé de ce type après le début, au plus 3 h après la fin
+# (la durée exclut les pauses, au ski par exemple) et avant l'activité suivante.
+_RECOVERY_AFTER = (
+    "SELECT e.recovery_time_min FROM readiness_event e "
+    "WHERE e.context = 'AFTER_POST_EXERCISE_RESET' AND e.timestamp_local >= a.start_local "
+    "AND e.timestamp_local <= datetime(a.end_local, '+3 hours') "
+    "AND (a.next_start IS NULL OR e.timestamp_local < a.next_start) "
+    "ORDER BY e.timestamp_local LIMIT 1"
+)

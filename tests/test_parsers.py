@@ -94,6 +94,22 @@ def test_readiness_morning_and_latest():
     assert rows["latest_score"] == 40 and rows["latest_recovery_time_min"] == 900
 
 
+def test_readiness_events_keep_every_entry():
+    events = parsers.parse_training_readiness([
+        {"timestampLocal": "2026-11-10T17:34:30.0", "score": 77, "recoveryTime": 1457,
+         "inputContext": "AFTER_POST_EXERCISE_RESET"},
+        {"timestampLocal": "2026-11-10T07:37:25.0", "score": 97, "recoveryTime": -1,
+         "inputContext": "AFTER_WAKEUP_RESET"},
+        {"score": 50},   # sans horodatage : ignoré
+    ], D)["readiness_event"]
+    assert events == [
+        {"timestamp_local": "2026-11-10 17:34:30", "date": D, "context": "AFTER_POST_EXERCISE_RESET",
+         "score": 77, "recovery_time_min": 1457},
+        {"timestamp_local": "2026-11-10 07:37:25", "date": D, "context": "AFTER_WAKEUP_RESET",
+         "score": 97, "recovery_time_min": None},
+    ]
+
+
 def test_ranges():
     bb = parsers.parse_body_battery_range(
         [{"date": D, "charged": 50, "drained": 60, "bodyBatteryValuesArray": [[1, 20], [2, 85], [3, None]]}], D, D)

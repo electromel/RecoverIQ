@@ -140,7 +140,7 @@ def data_overview(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     """Pour chaque indicateur : nombre de jours, première/dernière date, disponibilité."""
     avail = {r["metric"]: r for r in conn.execute("SELECT * FROM metric_availability")}
     result = []
-    for m in METRICS:
+    for m in (m for m in METRICS if m.listed):
         stats = conn.execute(f"SELECT COUNT(*) AS n, MIN(date) AS first, MAX(date) AS last FROM {m.table}").fetchone()
         a = avail.get(m.table)
         if a is None:

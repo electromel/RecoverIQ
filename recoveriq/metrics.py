@@ -10,6 +10,7 @@ class Metric:
     table: str
     label: str
     key: str = "date"  # colonne clé primaire
+    listed: bool = True  # affiché dans l'état des données (page Synchronisation)
 
 
 METRICS: tuple[Metric, ...] = (
@@ -28,6 +29,7 @@ METRICS: tuple[Metric, ...] = (
     Metric("daily_respiration", "Fréquence respiratoire"),
     Metric("daily_spo2", "SpO2"),
     Metric("activity", "Activités", key="activity_id"),
+    Metric("readiness_event", "Relevés Training Readiness", key="timestamp_local", listed=False),
 )
 
 METRICS_BY_TABLE = {m.table: m for m in METRICS}

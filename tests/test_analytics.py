@@ -1,6 +1,7 @@
 """Calculs du tableau de bord sur une base de démonstration."""
 
 from datetime import date, timedelta
+from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -189,3 +190,65 @@ def test_series_view_includes_garmin_zones(demo):
         rhr = series.series_view(conn, "rhr", "90", TODAY)
     assert readiness["zones"]["items"][0]["id"] == "risk"
     assert rhr["zones"] is None
+
+
+def test_activity_recovery_time_after_effort(db):
+    def act(i, start, duration_s):
+        return {"activity_id": i, "date": start[:10], "start_local": start, "type": "running", "duration_s": duration_s}
+
+    def event(ts, minutes, context="AFTER_POST_EXERCISE_RESET"):
+        return {"timestamp_local": ts, "date": ts[:10], "context": context, "score": 60, "recovery_time_min": minutes}
+
+    with connect() as conn:
+        repo.upsert_rows(conn, "activity", [
+            act(1, "2026-03-01 10:00:00", 3600),   # relevé 1 min après la fin
+            act(2, "2026-03-02 09:00:00", 1800),   # échauffement : son relevé précède la séance suivante
+            act(3, "2026-03-02 09:40:00", 3600),
+            act(4, "2026-03-03 10:00:00", 3600),   # relevé trop tardif (> 3 h après la fin)
+            act(5, "2026-03-04 10:00:00", 3600),   # aucun relevé
+        ])
+        repo.upsert_rows(conn, "readiness_event", [
+            event("2026-03-01 07:00:00", 5, "AFTER_WAKEUP_RESET"),
+            event("2026-03-01 11:01:00", 900),
+            event("2026-03-02 09:30:10", 300),
+            event("2026-03-02 10:40:20", 1500),
+            event("2026-03-03 15:00:00", 700),
+        ])
+        rows = {r["activity_id"]: r["recovery_time_min"]
+                for r in training.activities_list(conn, "all", date(2026, 3, 10))}
+    assert rows == {1: 900, 2: 300, 3: 1500, 4: None, 5: None}
+
+
+def test_migration_fills_events_from_raw_responses(tmp_path):
+    import json
+    import sqlite3
+
+    from recoveriq.db import database
+
+    path = tmp_path / "old.db"
+    conn = sqlite3.connect(path)
+    conn.executescript((Path(database.__file__).parent / "schema.sql").read_text("utf-8"))
+    conn.executescript((Path(database.__file__).parent / "migration_002_ai.sql").read_text("utf-8"))
+    conn.execute("PRAGMA user_version=2")
+    conn.execute(
+        "INSERT INTO raw_response (fetcher, start_date, end_date, fetched_at, outcome, payload) VALUES (?, ?, ?, ?, ?, ?)",
+        ("training_readiness", "2026-11-17", "2026-11-17", "x", "ok", json.dumps([
+            {"timestampLocal": "2026-11-17T17:34:30.0", "inputContext": "AFTER_POST_EXERCISE_RESET",
+             "score": 77, "recoveryTime": 1457},
+            {"timestampLocal": "2026-11-17T07:37:25.0", "inputContext": "AFTER_WAKEUP_RESET",
+             "score": 97, "recoveryTime": -1},
+        ])))
+    conn.execute(
+        "INSERT INTO raw_response (fetcher, start_date, end_date, fetched_at, outcome, payload) VALUES (?, ?, ?, ?, ?, ?)",
+        ("training_readiness", "2026-11-16", "2026-11-16", "x", "ok", "pas du json"))
+    conn.commit()
+    conn.close()
+
+    database.init_db(path)
+    with connect() as c:
+        events = [tuple(r) for r in c.execute(
+            "SELECT timestamp_local, date, context, score, recovery_time_min FROM readiness_event ORDER BY 1")]
+    assert events == [
+        ("2026-11-17 07:37:25", "2026-11-17", "AFTER_WAKEUP_RESET", 97, None),
+        ("2026-11-17 17:34:30", "2026-11-17", "AFTER_POST_EXERCISE_RESET", 77, 1457),
+    ]

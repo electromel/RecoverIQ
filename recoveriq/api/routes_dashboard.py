@@ -133,7 +133,7 @@ def export_activities(period: str = PeriodQuery) -> Response:
         ("start_local", "Début"), ("type", "Type"), ("name", "Nom"), ("duration_s", "Durée (s)"),
         ("distance_m", "Distance (m)"), ("elev_gain_m", "D+ (m)"), ("avg_hr", "FC moy"),
         ("max_hr", "FC max"), ("training_load", "Charge"), ("aerobic_te", "Effet aérobie"),
-        ("anaerobic_te", "Effet anaérobie"),
+        ("anaerobic_te", "Effet anaérobie"), ("recovery_time_min", "Récupération (min)"),
     ], activities(period))
 
 
