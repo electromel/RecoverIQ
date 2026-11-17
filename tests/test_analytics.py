@@ -115,6 +115,8 @@ def test_api_endpoints_and_csv(demo, cfg):
     assert client.get("/api/home").status_code == 200
     assert client.get("/api/series/hrv?period=30").json()["meta"]["unit"] == "ms"
     assert client.get("/api/series/nope").status_code == 404
+    assert len(client.get("/api/day/2026-11-10").json()["dates"]) == 3
+    assert client.get("/api/day/pas-une-date").status_code == 422
     assert client.get("/api/series/hrv?period=7").status_code == 422
     csv = client.get("/api/export/series/hrv.csv?period=30")
     assert csv.status_code == 200 and csv.content.startswith(b"\xef\xbb\xbf")
@@ -128,3 +130,32 @@ def test_dates_follow_real_today(demo):
     # Les vues utilisent date.today() côté API ; les tests analytiques fixent TODAY.
     with connect() as conn:
         assert repo.get_setting(conn, "inexistant") is None
+
+
+def test_day_view_three_days_with_intraday_from_raw(demo):
+    from recoveriq.analytics.day import day_view
+
+    d = TODAY - timedelta(days=10)
+    sleep = {
+        "dailySleepDTO": {"calendarDate": d.isoformat(), "sleepStartTimestampGMT": 1_000_000,
+                          "sleepEndTimestampGMT": 2_000_000},
+        "sleepHeartRate": [{"startGMT": 1_000_000, "value": 55}, {"startGMT": 1_060_000, "value": -1}],
+        "sleepLevels": [{"startGMT": "2026-11-06T22:00:00.0", "endGMT": "2026-11-06T22:30:00.0", "activityLevel": 0.0}],
+        "wellnessEpochSPO2DataDTOList": [{"epochTimestamp": "2026-11-06T22:01:00.0", "spo2Reading": 95}],
+    }
+    with connect() as conn:
+        repo.save_raw(conn, "sleep", d.isoformat(), d.isoformat(), "ok", sleep)
+        repo.save_raw(conn, "sleep", "2020-01-01", "2020-01-01", "ok", {"sleepHeartRate": [{"startGMT": 5, "value": 99}]})
+        view = day_view(conn, d)
+
+    assert view["dates"] == [(d + timedelta(days=i - 1)).isoformat() for i in range(3)]
+    assert len(view["daily"]) == len(SERIES)
+    assert all(len(r["values"]) == 3 for r in view["daily"])
+    hrv = next(r for r in view["daily"] if r["key"] == "hrv")
+    assert hrv["values"][1] is not None
+    intr = view["intraday"]
+    assert intr["heart_rate"] == [[1_000_000, 55.0]]          # -1 écarté, autre date ignorée
+    assert intr["sleep_stages"][0]["level"] == 0
+    assert intr["spo2"][0][1] == 95.0
+    assert intr["nights"] == [{"start": 1_000_000, "end": 2_000_000, "date": d.isoformat()}]
+    assert all(a["date"] in view["dates"] for a in view["activities"])

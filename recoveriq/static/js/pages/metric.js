@@ -58,6 +58,8 @@ export async function render(view, params, ctx) {
   const chartCard = document.createElement("div");
   chartCard.className = "card";
   chartCard.innerHTML = `<div class="chart-box"><canvas role="img"></canvas></div>
+    <p class="small muted">Cliquer sur une mesure (point bleu) ouvre le détail des 3 jours autour.
+    Glisser pour se déplacer dans le temps, molette pour zoomer, double-clic pour revenir à la vue complète.</p>
     <p class="small muted">Bande de normalité : moyenne des 30 jours précédents ± 1 écart type (au moins 10 valeurs).
     Les jours sans mesure ne sont pas interpolés.</p>`;
   view.append(head, tiles, chartCard);
@@ -104,10 +106,13 @@ export async function render(view, params, ctx) {
       { label: "Bande basse", data: col("band_low"), color: "transparent", kind: "band", hideInLegend: true },
       { label: "Bande de normalité", data: col("band_high"), color: c.band, kind: "band", fillTo: "-1" },
       { label: "Ligne de base 30 j", data: col("baseline"), color: c.baseline, dashed: true, width: 1.5, spanGaps: false },
-      { label: m.label, data: col("value"), color: c.value, points: true, width: 1.2, spanGaps: false, showLine: dates.length <= 120 },
+      { label: m.label, data: col("value"), color: c.value, points: true, width: 1.2, spanGaps: false, showLine: dates.length <= 120, clickable: true },
       { label: "Moyenne 7 j", data: col("ma7"), color: c.ma7, width: 2 },
       { label: "Moyenne 28 j", data: col("ma28"), color: c.ma28, width: 2 },
-    ], { decimals: m.decimals });
+    ], {
+      decimals: m.decimals,
+      onPointClick: (iso) => { location.hash = `#/day/${iso}/${encodeURIComponent(key)}`; },
+    });
   }
 
   await draw();

@@ -58,13 +58,16 @@ la page.
 | Vue | Contenu |
 |---|---|
 | **Accueil** | Cartes du jour : Body Battery, VFC, Training Readiness, sommeil, stress. Chaque valeur est comparée à la moyenne des 30 jours précédents, avec son écart et l'évolution sur 14 jours |
-| **Indicateurs** | Une courbe par indicateur (30 séries) : valeurs, moyennes mobiles 7 j et 28 j, bande de normalité, statistiques et tendance |
+| **Indicateurs** | Une courbe par indicateur (30 séries) : valeurs, moyennes mobiles 7 j et 28 j, bande de normalité, statistiques et tendance. Un clic sur une mesure (point bleu) ouvre son détail |
+| **Détail d'un jour** | Veille, jour et lendemain : courbes minute par minute tirées des réponses Garmin déjà importées (Body Battery, et pendant le sommeil FC, stress, VFC, SpO2, respiration, phases), activités de ces 3 jours et valeurs journalières de tous les indicateurs |
 | **Charge d'entraînement** | Charge aiguë vs chronique, ratio A/C avec zones, focus de charge vs plages cibles, frise du statut, volume hebdomadaire |
 | **Activités** | Liste filtrable par type, avec totaux |
 | **Corrélations** | Sommeil vs VFC et Body Battery du lendemain, stress vs recharge nocturne, VO2 max vs volume, semaine vs week-end |
 | **Synchronisation** | Connexion Garmin, état de l'import, données reçues par indicateur, journal |
 
 Chaque vue a un sélecteur de période (30 j, 90 j, 1 an, tout) et un bouton **Exporter CSV**.
+Sur tous les graphiques temporels : glisser pour se déplacer dans le temps, molette pour zoomer,
+double-clic pour revenir à la vue complète (dans le détail d'un jour, les graphiques bougent ensemble).
 Le CSV utilise le séparateur `;` et l'UTF-8 avec BOM : il s'ouvre directement dans Excel.
 
 **Définitions statistiques :**

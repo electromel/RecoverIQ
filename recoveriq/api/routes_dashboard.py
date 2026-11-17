@@ -10,6 +10,7 @@ from fastapi.responses import Response
 
 from recoveriq.analytics.catalog import PERIODS, SERIES, SERIES_BY_KEY
 from recoveriq.analytics.correlations import correlations_view
+from recoveriq.analytics.day import day_view
 from recoveriq.analytics.home import home_view
 from recoveriq.analytics.series import series_view
 from recoveriq.analytics.training import activities_list, training_view
@@ -58,6 +59,12 @@ def series(key: str, period: str = PeriodQuery) -> dict[str, Any]:
     _check_series(key)
     with connect() as conn:
         return series_view(conn, key, period, _today())
+
+
+@router.get("/day/{day}")
+def day_detail(day: date) -> dict[str, Any]:
+    with connect() as conn:
+        return day_view(conn, day)
 
 
 @router.get("/training")

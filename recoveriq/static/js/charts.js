@@ -33,6 +33,160 @@ const zonesPlugin = {
   },
 };
 
+// Plugin : repères temporels des graphiques intra-journaliers (jour sélectionné, nuits,
+// activités, minuits). Les instants sont en ms epoch, sur un axe X linéaire.
+const markersPlugin = {
+  id: "markers",
+  beforeDatasetsDraw(chart, _args, options) {
+    const { ctx, chartArea: area, scales: { x } } = chart;
+    if (!x || !options) return;
+    const px = (t) => Math.min(area.right, Math.max(area.left, x.getPixelForValue(t)));
+    ctx.save();
+    for (const s of options.spans ?? []) {
+      const [l, r] = [px(s.start), px(s.end)];
+      if (r - l < 0.5) continue;
+      ctx.fillStyle = s.color;
+      ctx.fillRect(l, area.top, r - l, area.bottom - area.top);
+    }
+    ctx.strokeStyle = options.lineColor ?? "rgba(128,128,128,.5)";
+    ctx.setLineDash([4, 4]);
+    for (const t of options.lines ?? []) {
+      if (t <= x.min || t >= x.max) continue;
+      const p = Math.round(x.getPixelForValue(t)) + 0.5;
+      ctx.beginPath(); ctx.moveTo(p, area.top); ctx.lineTo(p, area.bottom); ctx.stroke();
+    }
+    ctx.restore();
+  },
+};
+
+// --- Glisser pour se déplacer, molette pour zoomer --------------------------------
+//
+// Agit sur l'axe X uniquement. Axe « category » : min / max sont des indices de date ;
+// axe linéaire : des valeurs (ms epoch). La vue est gardée en flottants dans
+// chart.$panZoom.view pour que les petits pas de molette s'accumulent, puis arrondie
+// pour un axe par catégories. Double-clic : retour à la vue complète.
+
+const ZOOM_STEP = 1.25;
+const DRAG_THRESHOLD_PX = 4;
+
+function fullRange(chart, opts) {
+  if (opts.bounds) return { ...opts.bounds };
+  return { min: 0, max: Math.max(1, chart.data.labels.length - 1) };
+}
+
+function applyView(chart, view, { notify = true } = {}) {
+  const st = chart.$panZoom;
+  const opts = st.opts;
+  const full = fullRange(chart, opts);
+  const fullWidth = full.max - full.min;
+  let { min, max } = view ?? full;
+  let width = Math.max(max - min, Math.min(opts.minRange ?? 4, fullWidth));
+  if (width >= fullWidth) {
+    st.view = null;
+    if (opts.bounds) {
+      // Axe linéaire : la vue complète reste bornée à la fenêtre demandée.
+      chart.options.scales.x.min = full.min;
+      chart.options.scales.x.max = full.max;
+    } else {
+      delete chart.options.scales.x.min;
+      delete chart.options.scales.x.max;
+    }
+  } else {
+    const center = (min + max) / 2;
+    min = Math.min(Math.max(center - width / 2, full.min), full.max - width);
+    max = min + width;
+    st.view = { min, max };
+    const round = opts.bounds ? (v) => v : Math.round;
+    chart.options.scales.x.min = round(min);
+    chart.options.scales.x.max = round(max);
+  }
+  chart.update("none");
+  if (notify) opts.onChange?.(st.view);
+}
+
+/** Fixe la plage visible de l'axe X sans déclencher onChange (synchronisation). */
+export function setXRange(chart, view) {
+  if (chart.$panZoom) applyView(chart, view, { notify: false });
+}
+
+const panZoomPlugin = {
+  id: "panZoom",
+  defaults: { enabled: false },
+  afterInit(chart, _args, opts) {
+    if (!opts.enabled) return;
+    const canvas = chart.canvas;
+    const st = { opts, view: null, drag: null, dragged: false };
+    chart.$panZoom = st;
+    const current = () => st.view ?? fullRange(chart, opts);
+    // Position dans le canevas (en pixels CSS, comme chartArea).
+    const pos = (e) => {
+      const r = canvas.getBoundingClientRect();
+      return { x: e.clientX - r.left, y: e.clientY - r.top };
+    };
+    const inArea = (e) => {
+      const a = chart.chartArea;
+      const { x, y } = pos(e);
+      return a && x >= a.left && x <= a.right && y >= a.top && y <= a.bottom;
+    };
+
+    const onWheel = (e) => {
+      if (!inArea(e)) return;
+      e.preventDefault();
+      const { min, max } = current();
+      const a = chart.chartArea;
+      const ratio = (pos(e).x - a.left) / (a.right - a.left);
+      const center = min + ratio * (max - min);
+      const factor = e.deltaY > 0 ? ZOOM_STEP : 1 / ZOOM_STEP;
+      applyView(chart, { min: center - (center - min) * factor, max: center + (max - center) * factor });
+    };
+    const onDown = (e) => {
+      if (e.button !== 0 || !inArea(e)) return;
+      st.drag = { x: e.clientX, ...current(), id: e.pointerId };
+      st.dragged = false;
+    };
+    const onMove = (e) => {
+      const d = st.drag;
+      if (!d || e.pointerId !== d.id) return;
+      const dx = e.clientX - d.x;
+      if (!st.dragged && Math.abs(dx) < DRAG_THRESHOLD_PX) return;
+      if (!st.dragged) {
+        st.dragged = true;
+        canvas.setPointerCapture?.(e.pointerId);
+        canvas.style.cursor = "grabbing";
+        chart.tooltip?.setActiveElements([], { x: 0, y: 0 });
+      }
+      const a = chart.chartArea;
+      const shift = (-dx / (a.right - a.left)) * (d.max - d.min);
+      applyView(chart, { min: d.min + shift, max: d.max + shift });
+    };
+    const onUp = (e) => {
+      if (!st.drag || e.pointerId !== st.drag.id) return;
+      st.drag = null;
+      canvas.style.cursor = "";
+      // Le « click » qui suit un glissement ne doit pas ouvrir un point.
+      if (st.dragged) setTimeout(() => { st.dragged = false; }, 0);
+    };
+    const onDouble = (e) => { if (inArea(e)) applyView(chart, null); };
+
+    canvas.addEventListener("wheel", onWheel, { passive: false });
+    canvas.addEventListener("pointerdown", onDown);
+    canvas.addEventListener("pointermove", onMove);
+    canvas.addEventListener("pointerup", onUp);
+    canvas.addEventListener("pointercancel", onUp);
+    canvas.addEventListener("dblclick", onDouble);
+    canvas.style.touchAction = "pan-y";   // défilement vertical de la page conservé sur écran tactile
+    st.detach = () => {
+      canvas.removeEventListener("wheel", onWheel);
+      canvas.removeEventListener("pointerdown", onDown);
+      canvas.removeEventListener("pointermove", onMove);
+      canvas.removeEventListener("pointerup", onUp);
+      canvas.removeEventListener("pointercancel", onUp);
+      canvas.removeEventListener("dblclick", onDouble);
+    };
+  },
+  afterDestroy(chart) { chart.$panZoom?.detach?.(); },
+};
+
 let configured = false;
 function configure() {
   if (configured) return;
@@ -45,7 +199,7 @@ function configure() {
   // « this._fn is not a function » quand une propriété animée part d'une valeur
   // qu'il ne sait pas interpoler. Sans animation, aucun objet Animation n'est créé.
   Chart.defaults.animation = false;
-  Chart.register(zonesPlugin);
+  Chart.register(zonesPlugin, markersPlugin, panZoomPlugin);
   configured = true;
 }
 
@@ -121,33 +275,50 @@ export function calendarTicks(dates) {
   return ticks;
 }
 
-/** Axe X par dates (catégories). */
+/**
+ * Axe X par dates (catégories). Les graduations sont recalculées sur la plage visible,
+ * pour s'adapter au zoom : passer de 1 an à 3 semaines ramène des étiquettes journalières.
+ */
 function dateAxis(dates) {
-  const ticks = calendarTicks(dates);
-  if (!ticks) {
-    return {
-      type: "category",
-      ticks: { autoSkip: true, maxRotation: 0, maxTicksLimit: 8, callback: (_v, i) => fmtShortDate(dates[i]) },
-      grid: { display: false },
-    };
-  }
+  let cacheKey = null;
+  let labels = new Map();
+  const labelFor = (scale, value) => {
+    const lo = Math.max(0, Math.round(scale.min));
+    const hi = Math.min(dates.length - 1, Math.round(scale.max));
+    const key = `${lo}:${hi}`;
+    if (key !== cacheKey) {
+      cacheKey = key;
+      const visible = dates.slice(lo, hi + 1);
+      const ticks = calendarTicks(visible);
+      labels = new Map();
+      if (ticks) {
+        ticks.forEach((label, i) => labels.set(lo + i, label));
+      } else {
+        const step = Math.max(1, Math.ceil(visible.length / 8));
+        for (let i = 0; i < visible.length; i += step) labels.set(lo + i, fmtShortDate(visible[i]));
+      }
+    }
+    return labels.get(value) ?? null;
+  };
   return {
     type: "category",
     // Toutes les catégories sont évaluées ; seules celles du plan reçoivent une étiquette.
     // Renvoyer null masque à la fois l'étiquette et la ligne de grille correspondante.
-    ticks: { autoSkip: false, maxRotation: 0, callback: (_v, i) => ticks.get(i) ?? null },
+    // Pour un axe par catégories, la valeur du tick est l'indice de la date.
+    ticks: { autoSkip: false, maxRotation: 0, callback(value) { return labelFor(this, value); } },
     grid: { display: true },
   };
 }
 
 /** Graphique temporel. ``series`` = [{label, data, color, kind: line|bar|band, dashed, fillTo, yAxisID, points}] */
-export function timeChart(canvas, dates, series, { decimals = 0, zones = null, y = {}, y2 = null } = {}) {
+export function timeChart(canvas, dates, series, { decimals = 0, zones = null, y = {}, y2 = null, onPointClick = null } = {}) {
   configure();
   const datasets = series.map((s) => {
     const base = {
       label: s.label, data: s.data, borderColor: s.color, backgroundColor: s.color,
       yAxisID: s.yAxisID ?? "y", spanGaps: s.spanGaps ?? true, order: s.order ?? 0,
-      hideInLegend: s.hideInLegend ?? false,
+      hideInLegend: s.hideInLegend ?? false, clickable: Boolean(onPointClick && s.clickable),
+      pointHitRadius: onPointClick && s.clickable ? 6 : 1,
     };
     if (s.kind === "bar") return { ...base, type: "bar", borderWidth: 0, order: 10 };
     if (s.kind === "band") {
@@ -165,13 +336,27 @@ export function timeChart(canvas, dates, series, { decimals = 0, zones = null, y
   });
   const scales = { x: dateAxis(dates), y: { ...y, ticks: { callback: (v) => fmtNum(v, decimals) } } };
   if (y2) scales.y2 = { position: "right", grid: { display: false }, ...y2 };
+  // Point cliquable (ex. mesure du jour) : le plus proche sous le curseur, hors glissement.
+  const clickedPoint = (chart, event) => chart
+    .getElementsAtEventForMode(event, "nearest", { intersect: true }, false)
+    .find((el) => chart.data.datasets[el.datasetIndex].clickable && chart.data.datasets[el.datasetIndex].data[el.index] !== null);
   return new Chart(canvas, {
     type: "line",
     data: { labels: dates, datasets },
     options: {
       interaction: { mode: "index", intersect: false },
       scales,
+      onClick: onPointClick && ((event, _els, chart) => {
+        if (chart.$panZoom?.dragged) return;
+        const el = clickedPoint(chart, event);
+        if (el) onPointClick(dates[el.index]);
+      }),
+      onHover: onPointClick && ((event, _els, chart) => {
+        if (chart.$panZoom?.drag) return;
+        chart.canvas.style.cursor = clickedPoint(chart, event) ? "pointer" : "";
+      }),
       plugins: {
+        panZoom: { enabled: true, minRange: 6 },
         zones: { items: zones },
         legend: { labels: { boxWidth: 12, filter: (item, data) => !data.datasets[item.datasetIndex].hideInLegend } },
         tooltip: {
@@ -236,6 +421,95 @@ export function scatterChart(canvas, points, { xLabel, yLabel, slope, intercept,
       scales: {
         x: { type: "linear", title: { display: true, text: xLabel } },
         y: { title: { display: true, text: yLabel } },
+      },
+    },
+  });
+}
+
+// --- Graphiques intra-journaliers (axe X en temps réel) -----------------------------
+
+const HOUR_MS = 3_600_000;
+const TIME_STEPS_H = [1, 2, 3, 6, 12, 24, 48];
+const LOCALE = "fr-CH";
+
+/** Graduations alignées sur l'heure locale (≤ 9 étiquettes), y compris aux changements d'heure. */
+function hourTicks(scale) {
+  const range = scale.max - scale.min;
+  const stepH = TIME_STEPS_H.find((h) => range / (h * HOUR_MS) <= 9) ?? 48;
+  const d = new Date(scale.min);
+  d.setMinutes(0, 0, 0);
+  if (stepH >= 24) d.setHours(0);
+  else d.setHours(Math.floor(d.getHours() / stepH) * stepH);
+  const ticks = [];
+  while (d.getTime() <= scale.max && ticks.length < 50) {
+    if (d.getTime() >= scale.min) ticks.push({ value: d.getTime() });
+    if (stepH >= 24) d.setDate(d.getDate() + stepH / 24);
+    else d.setHours(d.getHours() + stepH);
+  }
+  scale.ticks = ticks;
+}
+
+export function fmtTimeTick(ms) {
+  const d = new Date(ms);
+  if (d.getHours() === 0 && d.getMinutes() === 0) {
+    return d.toLocaleDateString(LOCALE, { weekday: "short", day: "2-digit", month: "2-digit" });
+  }
+  return d.toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" });
+}
+
+const fmtInstant = (ms) => new Date(ms).toLocaleString(LOCALE, {
+  weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
+});
+
+/** Insère une coupure (y = null) quand deux mesures sont séparées de plus de ``maxGapMs``. */
+export function withGaps(points, maxGapMs) {
+  const out = [];
+  points.forEach(([x, y], i) => {
+    if (i && x - points[i - 1][0] > maxGapMs) out.push({ x: (x + points[i - 1][0]) / 2, y: null });
+    out.push({ x, y });
+  });
+  return out;
+}
+
+/**
+ * Graphique sur une fenêtre de temps [min, max] (ms). ``series`` = [{label, data:[{x,y}], color,
+ * stepped, segmentColor, fill}]. ``markers`` = options du plugin de repères ; ``onRangeChange``
+ * est appelé après un glisser / zoom (pour synchroniser les autres graphiques).
+ */
+export function intradayChart(canvas, series, {
+  min, max, decimals = 0, unit = "", y = {}, markers = {}, onRangeChange = null, yLabel = null,
+} = {}) {
+  configure();
+  const datasets = series.map((s) => ({
+    label: s.label, data: s.data, borderColor: s.color, backgroundColor: s.fill ?? s.color,
+    borderWidth: s.width ?? 1.6, pointRadius: 0, pointHoverRadius: 3, spanGaps: false,
+    stepped: s.stepped ?? false, tension: s.stepped ? 0 : 0.2, fill: s.fill ? "origin" : false,
+    segment: s.segmentColor ? { borderColor: (ctx) => s.segmentColor(ctx.p0.parsed.y) } : undefined,
+  }));
+  return new Chart(canvas, {
+    type: "line",
+    data: { datasets },
+    options: {
+      parsing: false,
+      normalized: true,
+      interaction: { mode: "nearest", axis: "x", intersect: false },
+      scales: {
+        x: {
+          type: "linear", min, max, afterBuildTicks: hourTicks,
+          ticks: { maxRotation: 0, autoSkip: false, callback: (v) => fmtTimeTick(v) },
+        },
+        y: { ...y, ticks: { callback: yLabel ?? ((v) => fmtNum(v, decimals)), ...(y.ticks ?? {}) } },
+      },
+      plugins: {
+        panZoom: { enabled: true, bounds: { min, max }, minRange: 30 * 60_000, onChange: onRangeChange },
+        markers,
+        legend: { display: series.length > 1, labels: { boxWidth: 12 } },
+        tooltip: {
+          callbacks: {
+            title: (items) => (items[0] ? fmtInstant(items[0].parsed.x) : ""),
+            label: (item) => `${item.dataset.label} : ${yLabel ? yLabel(item.parsed.y) : fmtNum(item.parsed.y, decimals)}${unit ? ` ${unit}` : ""}`,
+          },
+        },
       },
     },
   });

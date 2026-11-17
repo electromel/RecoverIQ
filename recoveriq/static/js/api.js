@@ -32,6 +32,7 @@ export const api = {
   catalog: () => request("GET", "/api/catalog"),
   home: () => request("GET", "/api/home"),
   series: (key, period) => request("GET", `/api/series/${encodeURIComponent(key)}?${q(period)}`),
+  day: (iso) => request("GET", `/api/day/${encodeURIComponent(iso)}`),
   training: (period) => request("GET", `/api/training?${q(period)}`),
   activities: (period) => request("GET", `/api/activities?${q(period)}`),
   correlations: (period) => request("GET", `/api/correlations?${q(period)}`),

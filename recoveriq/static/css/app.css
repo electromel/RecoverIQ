@@ -20,6 +20,20 @@
   --c-zone-caution: rgba(154, 103, 0, 0.16);
   --c-zone-risk: rgba(207, 34, 46, 0.14);
   --grid: rgba(0, 0, 0, 0.06);
+  /* Détail sur 3 jours */
+  --c-day-selected: rgba(31, 111, 235, 0.06);
+  --c-night: rgba(112, 72, 232, 0.08);
+  --c-activity: rgba(232, 89, 12, 0.18);
+  --c-hr: #d6336c;
+  --c-stress: #e8590c;
+  --c-bb: #1f6feb;
+  --c-hrv: #2b8a3e;
+  --c-spo2: #0c8599;
+  --c-resp: #7048e8;
+  --c-stage-deep: #1c3d8c;
+  --c-stage-light: #4dabf7;
+  --c-stage-rem: #be4bdb;
+  --c-stage-awake: #f783ac;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -42,6 +56,19 @@
     --c-zone-caution: rgba(210, 153, 34, 0.16);
     --c-zone-risk: rgba(248, 81, 73, 0.16);
     --grid: rgba(255, 255, 255, 0.07);
+    --c-day-selected: rgba(68, 147, 248, 0.08);
+    --c-night: rgba(177, 151, 252, 0.08);
+    --c-activity: rgba(255, 146, 43, 0.2);
+    --c-hr: #f06595;
+    --c-stress: #ff922b;
+    --c-bb: #4493f8;
+    --c-hrv: #51cf66;
+    --c-spo2: #3bc9db;
+    --c-resp: #b197fc;
+    --c-stage-deep: #5c7cfa;
+    --c-stage-light: #74c0fc;
+    --c-stage-rem: #da77f2;
+    --c-stage-awake: #faa2c1;
   }
 }
 
@@ -199,3 +226,16 @@ details ul { margin: 4px 0; padding-left: 18px; }
 .provider-card .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .switch { display: inline-flex !important; grid-auto-flow: column; align-items: center; gap: 6px; font-weight: 600; }
 pre.json { max-height: 420px; overflow: auto; background: var(--bg); padding: 10px; border-radius: 6px; font-size: 12px; }
+
+/* Détail sur 3 jours */
+.day-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 14px; }
+@media (max-width: 600px) { .day-grid { grid-template-columns: 1fr; } }
+.day-grid .chart-box { height: 220px; }
+.day-grid .chart-box.tall { height: 180px; }
+.legend-inline { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); }
+.legend-inline i { display: inline-block; width: 12px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+table.day-table td.selected, table.day-table th.selected { background: var(--c-day-selected); font-weight: 600; }
+table.day-table tr.group td { font-weight: 600; color: var(--muted); padding-top: 12px; }
+.activity-list { display: grid; gap: 8px; }
+.activity-item { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: baseline; border-left: 3px solid var(--c-ma7); padding: 4px 10px; }
+.activity-item .when { font-variant-numeric: tabular-nums; color: var(--muted); min-width: 130px; }

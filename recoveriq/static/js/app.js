@@ -5,6 +5,7 @@ import { escapeHtml, fmtDate } from "./format.js";
 const ROUTES = {
   "": () => import("./pages/home.js"),
   metric: () => import("./pages/metric.js"),
+  day: () => import("./pages/day.js"),
   training: () => import("./pages/training.js"),
   activities: () => import("./pages/activities.js"),
   correlations: () => import("./pages/correlations.js"),
@@ -35,7 +36,7 @@ async function route() {
   const token = ++renderToken;
 
   document.querySelectorAll(".nav a").forEach((a) => {
-    a.classList.toggle("active", a.dataset.route === (name || "home"));
+    a.classList.toggle("active", a.dataset.route === ((name === "day" ? "metric" : name) || "home"));
   });
   view.innerHTML = `<p class="muted">Chargement…</p>`;
   try {
