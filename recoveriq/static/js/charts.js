@@ -354,7 +354,8 @@ export function viewFrom(dates, firstIso) {
 }
 
 /** Graphique temporel. ``series`` = [{label, data, color, kind: line|bar|band, dashed, fillTo, yAxisID, points}] */
-export function timeChart(canvas, dates, series, { decimals = 0, zones = null, y = {}, y2 = null, onPointClick = null, view = null } = {}) {
+export function timeChart(canvas, dates, series, { decimals = 0, format = null, zones = null, y = {}, y2 = null, onPointClick = null, view = null } = {}) {
+  const fmtY = format ?? ((v) => fmtNum(v, decimals));
   configure();
   const datasets = series.map((s) => {
     const base = {
@@ -385,7 +386,7 @@ export function timeChart(canvas, dates, series, { decimals = 0, zones = null, y
   // accessible en glissant ou en dézoomant.
   const initial = view && (view.min > 0 || view.max < dates.length - 1)
     ? { min: view.min - pad, max: view.max + pad } : null;
-  const scales = { x: dateAxis(dates, initial ?? bounds), y: { ...y, ticks: { callback: (v) => fmtNum(v, decimals) } } };
+  const scales = { x: dateAxis(dates, initial ?? bounds), y: { ...y, ticks: { callback: (v) => fmtY(v) } } };
   if (y2) scales.y2 = { position: "right", grid: { display: false }, ...y2 };
   // Point cliquable (ex. mesure du jour) : le plus proche sous le curseur, hors glissement.
   const clickedPoint = (chart, event) => chart
@@ -416,7 +417,7 @@ export function timeChart(canvas, dates, series, { decimals = 0, zones = null, y
           filter: (item) => item.parsed.y !== null && !item.dataset.hideInLegend,
           callbacks: {
             title: (items) => (items[0] ? new Date(`${dates[items[0].dataIndex]}T00:00:00`).toLocaleDateString("fr-CH") : ""),
-            label: (item) => `${item.dataset.label} : ${fmtNum(item.parsed.y, decimals)}`,
+            label: (item) => `${item.dataset.label} : ${fmtY(item.parsed.y)}`,
           },
         },
       },

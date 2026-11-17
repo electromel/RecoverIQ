@@ -3,7 +3,7 @@
 import { api } from "../api.js";
 import { intradayChart, setXRange, withGaps } from "../charts.js";
 import {
-  activityTypeLabel, escapeHtml, fmtDuration, fmtNum, fmtValue,
+  activityTypeLabel, escapeHtml, fmtChrono, fmtDuration, fmtNum, fmtValue,
 } from "../format.js";
 
 const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -205,6 +205,13 @@ export async function render(view, params, ctx) {
         a.avg_hr ? `FC ${fmtNum(a.avg_hr)} / ${fmtNum(a.max_hr)} bpm` : null,
         a.training_load ? `charge ${fmtNum(a.training_load)}` : null,
         a.aerobic_te !== null ? `effet ${fmtNum(a.aerobic_te, 1)} / ${fmtNum(a.anaerobic_te, 1)}` : null,
+        a.moving_s && a.duration_s && a.duration_s - a.moving_s >= 60 ? `${fmtDuration(a.moving_s)} en mouvement` : null,
+        a.elev_loss_m ? `${fmtNum(a.elev_loss_m)} m D−` : null,
+        a.calories ? `${fmtNum(a.calories)} kcal` : null,
+        a.vo2max ? `VO2 max ${fmtNum(a.vo2max, 1)}` : null,
+        a.best_1k_s ? `1 km en ${fmtChrono(a.best_1k_s)}` : null,
+        a.best_5k_s ? `5 km en ${fmtChrono(a.best_5k_s)}` : null,
+        a.best_10k_s ? `10 km en ${fmtChrono(a.best_10k_s)}` : null,
         a.device ? `montre : ${a.device}` : null,
       ].filter(Boolean);
       const when = s ? `${headDate(a.date)} ${fmtClock(s)}–${fmtClock(s + (a.duration_s ?? 0) * 1000)}` : headDate(a.date);

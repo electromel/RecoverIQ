@@ -82,6 +82,10 @@ class FakeGarmin:
         self._log("activities", s, e)
         return []
 
+    def get_lactate_threshold(self, *, latest=True, start_date=None, end_date=None, aggregation="daily"):
+        self._log("lactate_threshold", start_date, end_date)
+        return {"speed": [], "heart_rate": [], "power": []}
+
     def get_user_profile(self):
         self._log("profile")
         return {"userData": {"gender": "MALE", "birthDate": "1970-06-15"}}

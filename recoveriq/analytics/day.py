@@ -185,6 +185,7 @@ def activities(conn: sqlite3.Connection, first: str, last: str) -> list[dict[str
     rows = conn.execute(
         "SELECT a.activity_id, a.date, a.start_local, a.type, a.name, a.duration_s, a.distance_m, a.elev_gain_m, "
         "a.avg_hr, a.max_hr, a.calories, a.training_load, a.aerobic_te, a.anaerobic_te, a.device_id, "
+        "a.moving_s, a.elev_loss_m, a.vo2max, a.best_1k_s, a.best_5k_s, a.best_10k_s, "
         "d.name AS device_name "
         "FROM activity a LEFT JOIN device d ON d.device_id = a.device_id "
         "WHERE a.date BETWEEN ? AND ? ORDER BY a.start_local", (first, last),

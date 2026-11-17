@@ -148,9 +148,11 @@ def export_devices() -> Response:
 def export_activities(period: str = PeriodQuery) -> Response:
     return csv_response(f"activites_{period}", [
         ("start_local", "Début"), ("type", "Type"), ("name", "Nom"), ("duration_s", "Durée (s)"),
-        ("distance_m", "Distance (m)"), ("elev_gain_m", "D+ (m)"), ("avg_hr", "FC moy"),
-        ("max_hr", "FC max"), ("training_load", "Charge"), ("aerobic_te", "Effet aérobie"),
-        ("anaerobic_te", "Effet anaérobie"), ("recovery_time_min", "Récupération (min)"),
+        ("moving_s", "En mouvement (s)"), ("distance_m", "Distance (m)"), ("elev_gain_m", "D+ (m)"),
+        ("elev_loss_m", "D- (m)"), ("avg_hr", "FC moy"), ("max_hr", "FC max"), ("calories", "Calories (kcal)"),
+        ("training_load", "Charge"), ("aerobic_te", "Effet aérobie"), ("anaerobic_te", "Effet anaérobie"),
+        ("vo2max", "VO2 max"), ("best_1k_s", "Meilleur 1 km (s)"), ("best_5k_s", "Meilleur 5 km (s)"),
+        ("best_10k_s", "Meilleur 10 km (s)"), ("recovery_time_min", "Récupération (min)"),
     ], activities(period))
 
 

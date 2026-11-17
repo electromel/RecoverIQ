@@ -313,3 +313,32 @@ def test_devices_view_and_day_devices(db):
     assert days["activities"][0]["device"] == "fenix 5S Plus"
     assert days["devices"]["2020-03-01"] == {"activities": ["fenix 5S Plus"], "primary": []}
     assert days["devices"]["2020-03-02"] == {"activities": [], "primary": []}
+
+
+def test_migration_5_fills_sleep_and_best_times(tmp_path):
+    import json
+    import sqlite3
+
+    from recoveriq.db import database
+
+    path = tmp_path / "old.db"
+    conn = sqlite3.connect(path)
+    conn.executescript((Path(database.__file__).parent / "schema.sql").read_text("utf-8"))
+    conn.executescript((Path(database.__file__).parent / "migration_002_ai.sql").read_text("utf-8"))
+    conn.execute("PRAGMA user_version=2")
+    conn.execute("INSERT INTO activity (activity_id, date, start_local) VALUES (1, '2026-10-01', '2026-10-01 10:00:00')")
+    conn.execute("INSERT INTO daily_sleep (date, score) VALUES ('2026-11-17', 84)")
+    raw = "INSERT INTO raw_response (fetcher, start_date, end_date, fetched_at, outcome, payload) VALUES (?, ?, ?, 'x', 'ok', ?)"
+    conn.execute(raw, ("activities", "2026-10-01", "2026-10-30", json.dumps([
+        {"activityId": 1, "fastestSplit_1000": 409.69, "fastestSplit_5000": 2224.9, "fastestSplit_10000": None}])))
+    conn.execute(raw, ("sleep", "2026-11-17", "2026-11-17", json.dumps(
+        {"dailySleepDTO": {"avgHeartRate": 59.0, "sleepNeed": {"actual": 420}}})))
+    conn.execute(raw, ("sleep", "2019-05-05", "2019-05-05", json.dumps({"dailySleepDTO": {"avgHeartRate": None}})))
+    conn.commit()
+    conn.close()
+
+    database.init_db(path)
+    with connect() as c:
+        assert tuple(c.execute("SELECT best_1k_s, best_5k_s, best_10k_s FROM activity").fetchone()) == (409.69, 2224.9, None)
+        assert [tuple(r) for r in c.execute("SELECT date, score, avg_hr, sleep_need_min FROM daily_sleep")] == [
+            ("2026-11-17", 84, 59.0, 420)]

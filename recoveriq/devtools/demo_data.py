@@ -90,6 +90,11 @@ def populate(conn: sqlite3.Connection, days: int, today: date, seed: int = 42) -
                 "recovery_time_min": int(session_load * 12),
             }])
         prev_stress = stress
+    repo.upsert_rows(conn, "daily_lactate_threshold", [
+        {"date": (today - timedelta(days=i)).isoformat(), "heart_rate": 165.0 - i / 60,
+         "pace_s_per_km": 310.0 + i / 10, "power": 310.0 - i / 20}
+        for i in range(0, days, 21)
+    ])
     repo.upsert_rows(conn, "device", [
         {"device_id": 3_400_000_001, "name": "Montre de démonstration A", "date": today.isoformat()},
         {"device_id": 3_400_000_002, "name": "Montre de démonstration B", "date": today.isoformat()},

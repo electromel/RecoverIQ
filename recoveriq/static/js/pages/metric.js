@@ -2,7 +2,7 @@
 import { api, exportUrl } from "../api.js";
 import { colors, timeChart, viewFrom } from "../charts.js";
 import {
-  escapeHtml, exportLink, fmtDate, fmtSigned, fmtValue, loadPref, periodSelector,
+  escapeHtml, exportLink, fmtDate, fmtPace, fmtSigned, fmtValue, loadPref, periodSelector,
   latestOnly, STALE,
 } from "../format.js";
 
@@ -100,6 +100,7 @@ export async function render(view, params, ctx) {
     const st = data.stats;
     const fv = (v) => fmtValue(v, m.unit, m.decimals);
     const trend = st.trend_per_week === null ? "–"
+      : m.unit === "min/km" ? `${fmtSigned(st.trend_per_week * 60, 1)} s/km / sem.`
       : `${fmtSigned(st.trend_per_week, m.decimals + 1)}${m.unit ? ` ${escapeHtml(m.unit)}` : ""} / sem.`;
     tiles.innerHTML = [
       tile(`Dernière valeur (${fmtDate(st.latest_date)})`, fv(st.latest)),
@@ -131,6 +132,7 @@ export async function render(view, params, ctx) {
       { label: "Moyenne 28 j", data: col("ma28"), color: c.ma28, width: 2 },
     ], {
       decimals: m.decimals,
+      format: m.unit === "min/km" ? fmtPace : null,
       zones: zones.map((z) => ({ min: z.min, max: z.max, color: c.zone[z.id] })),
       view: viewFrom(dates, data.points[0].date),
       onPointClick: (iso) => { location.hash = `#/day/${iso}/${encodeURIComponent(key)}`; },

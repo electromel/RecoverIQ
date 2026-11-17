@@ -56,6 +56,12 @@ def _int(value: Any) -> int | None:
     return int(round(number)) if number is not None else None
 
 
+def _positive(value: Any) -> float | None:
+    """Nombre > 0, sinon None (0 signifie « non mesuré » pour ces champs)."""
+    number = _num(value)
+    return number if number else None
+
+
 def _str(value: Any) -> str | None:
     return str(value) if value not in (None, "") else None
 
@@ -249,6 +255,8 @@ def parse_sleep(payload: Any, date: str) -> Rows:
             avg_sleep_stress=_num(_get(s, "avgSleepStress")),
             avg_overnight_hrv=_num(_get(payload, "avgOvernightHrv")),
             resting_hr=_int(_get(payload, "restingHeartRate")),
+            avg_hr=_positive(_get(s, "avgHeartRate")),
+            sleep_need_min=_int(_positive(_get(s, "sleepNeed", "actual"))),
         ),
         "daily_respiration": _row(
             sleep_date,
@@ -411,8 +419,32 @@ def parse_activities(payload: Any, start: str, end: str) -> Rows:
             "aerobic_te": _num(_get(a, "aerobicTrainingEffect")),
             "anaerobic_te": _num(_get(a, "anaerobicTrainingEffect")),
             "vo2max": _num(_get(a, "vO2MaxValue")),
+            "best_1k_s": _positive(_get(a, "fastestSplit_1000")),
+            "best_5k_s": _positive(_get(a, "fastestSplit_5000")),
+            "best_10k_s": _positive(_get(a, "fastestSplit_10000")),
         })
     return {"activity": rows}
+
+
+def parse_lactate_threshold(payload: Any, start: str, end: str) -> Rows:
+    """Seuil lactique de course : FC, vitesse et puissance, chacune datée de sa mesure.
+
+    Garmin exprime la vitesse en dixièmes de mètre par seconde (0,2944 → 2,944 m/s,
+    soit 5:40 / km) : elle est convertie en allure (secondes par kilomètre).
+    """
+    by_date: dict[str, dict[str, Any]] = {}
+
+    def collect(items: Any, column: str, convert: Callable[[float], float]) -> None:
+        for item in items if isinstance(items, list) else []:
+            day = _str(_get(item, "from"))
+            value = _positive(_get(item, "value"))
+            if day and value is not None:
+                by_date.setdefault(day[:10], {"date": day[:10]})[column] = round(convert(value), 1)
+
+    collect(_get(payload, "heart_rate"), "heart_rate", lambda v: v)
+    collect(_get(payload, "speed"), "pace_s_per_km", lambda v: 1000 / (v * 10))
+    collect(_get(payload, "power"), "power", lambda v: v)
+    return {"daily_lactate_threshold": [by_date[d] for d in sorted(by_date)]}
 
 
 def no_rows(payload: Any, date: str) -> Rows:

@@ -79,6 +79,10 @@ FETCHERS: tuple[Fetcher, ...] = (
             incremental_daily=ENDURANCE_DAY),
     Fetcher("activities", "Activités", Scope.RANGE,
             lambda g, s, e: g.get_activities_by_date(s, e), parsers.parse_activities),
+    # Trois requêtes Garmin par plage (vitesse, FC, puissance), 366 jours au plus.
+    Fetcher("lactate_threshold", "Seuil lactique", Scope.RANGE,
+            lambda g, s, e: g.get_lactate_threshold(latest=False, start_date=s, end_date=e, aggregation="daily"),
+            parsers.parse_lactate_threshold),
 )
 
 DAILY_FETCHERS = tuple(f for f in FETCHERS if f.scope is Scope.DAILY)

@@ -141,3 +141,29 @@ def test_devices_from_training_status_and_activities():
         {"activityId": 2, "startTimeLocal": f"{D} 12:00:00"},
     ], D, D)["activity"]
     assert [a["device_id"] for a in acts] == [348, None]
+
+
+
+def test_sleep_heart_rate_and_need():
+    rows = parsers.parse_sleep({"dailySleepDTO": {"sleepTimeSeconds": 25980, "avgHeartRate": 59.0,
+                                                  "sleepNeed": {"baseline": 460, "actual": 420}}}, D)
+    assert rows["daily_sleep"][0]["avg_hr"] == 59.0 and rows["daily_sleep"][0]["sleep_need_min"] == 420
+
+
+def test_activity_best_times():
+    act = parsers.parse_activities([{"activityId": 1, "startTimeLocal": f"{D} 10:00:00", "fastestSplit_1000": 409.69,
+                                     "fastestSplit_5000": 2224.9, "fastestSplit_10000": None}], D, D)["activity"][0]
+    assert (act["best_1k_s"], act["best_5k_s"], act["best_10k_s"]) == (409.69, 2224.9, None)
+
+
+def test_lactate_threshold():
+    rows = parsers.parse_lactate_threshold({
+        "speed": [{"from": "2025-01-01", "value": 0.31666578}, {"from": "2025-01-05", "value": 0}],
+        "heart_rate": [{"from": "2025-01-01", "value": 168.0}, {"from": "2024-09-12", "value": 158.0}],
+        "power": [{"from": "2025-01-01", "value": 316.0}],
+    }, "2024-09-01", "2025-01-31")["daily_lactate_threshold"]
+    assert rows == [
+        {"date": "2024-09-12", "heart_rate": 158.0},
+        {"date": "2025-01-01", "heart_rate": 168.0, "pace_s_per_km": 315.8, "power": 316.0},   # 5:16 / km
+    ]
+    assert parsers.parse_lactate_threshold(None, "2024-09-01", "2024-09-30") == {"daily_lactate_threshold": []}

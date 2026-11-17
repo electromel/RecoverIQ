@@ -116,8 +116,9 @@ def activities_list(conn: sqlite3.Connection, period: str, today: date) -> list[
     where, params = _where_period(period_start(period, today))
     return [dict(r) for r in conn.execute(
         f"WITH a AS ({_ACTIVITY_WINDOW}) "
-        f"SELECT activity_id, date, start_local, type, name, duration_s, distance_m, elev_gain_m, "
-        f"avg_hr, max_hr, training_load, aerobic_te, anaerobic_te, ({_RECOVERY_AFTER}) AS recovery_time_min "
+        f"SELECT activity_id, date, start_local, type, name, duration_s, moving_s, distance_m, elev_gain_m, "
+        f"elev_loss_m, avg_hr, max_hr, calories, training_load, aerobic_te, anaerobic_te, vo2max, "
+        f"best_1k_s, best_5k_s, best_10k_s, ({_RECOVERY_AFTER}) AS recovery_time_min "
         f"FROM a {where} ORDER BY start_local DESC", params)]
 
 

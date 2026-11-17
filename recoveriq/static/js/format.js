@@ -36,10 +36,28 @@ export function fmtDuration(seconds) {
 /** Heures décimales → « 7 h 24 ». */
 export const fmtHours = (hours) => (hours === null || hours === undefined ? "–" : fmtDuration(hours * 3600));
 
-/** Valeur d'un indicateur dans son unité (les heures sont affichées en h/min). */
+/** Minutes décimales → « 5:40 » (allure, temps de course). */
+export function fmtPace(minutes) {
+  if (minutes === null || minutes === undefined || !Number.isFinite(minutes)) return "–";
+  const total = Math.round(minutes * 60);
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+}
+
+/** Secondes → « 4:07 » ou « 1:02:15 » (chronos). */
+export function fmtChrono(seconds) {
+  if (seconds === null || seconds === undefined) return "–";
+  const total = Math.round(seconds);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = String(total % 60).padStart(2, "0");
+  return h ? `${h}:${String(m).padStart(2, "0")}:${s}` : `${m}:${s}`;
+}
+
+/** Valeur d'un indicateur dans son unité (les heures sont affichées en h/min, les allures en m:ss). */
 export function fmtValue(value, unit, decimals = 0) {
   if (value === null || value === undefined) return "–";
   if (unit === "h") return fmtHours(value);
+  if (unit === "min/km") return `${fmtPace(value)} /km`;
   return fmtNum(value, decimals) + (unit ? ` ${unit}` : "");
 }
 
@@ -47,6 +65,7 @@ export function fmtValue(value, unit, decimals = 0) {
 export function fmtSignedValue(value, unit, decimals = 0) {
   if (value === null || value === undefined) return "–";
   if (unit === "h") return (value < 0 ? "−" : "+") + fmtHours(Math.abs(value));
+  if (unit === "min/km") return (value < 0 ? "−" : "+") + fmtPace(Math.abs(value)) + " /km";
   return fmtSigned(value, decimals) + (unit ? ` ${unit}` : "");
 }
 

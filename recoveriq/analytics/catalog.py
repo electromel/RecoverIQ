@@ -48,6 +48,12 @@ SERIES: tuple[Series, ...] = (
     Series("sleep_awake", "daily_sleep", "awake_s", "Éveil nocturne", "min", "Sommeil", higher_is_better=False, scale=1 / 60),
     Series("resp_sleep", "daily_respiration", "sleep_avg", "Respiration nocturne", "rpm", "Sommeil", higher_is_better=None, decimals=1),
     Series("spo2_sleep", "daily_spo2", "sleep_avg", "SpO2 nocturne", "%", "Sommeil", decimals=1),
+    Series("sleep_hr", "daily_sleep", "avg_hr", "FC moyenne pendant le sommeil", "bpm", "Sommeil", higher_is_better=False),
+    Series("sleep_stress", "daily_sleep", "avg_sleep_stress", "Stress pendant le sommeil", "", "Sommeil",
+           higher_is_better=False),
+    Series("sleep_need", "daily_sleep", "sleep_need_min", "Besoin de sommeil (Garmin)", "h", "Sommeil",
+           higher_is_better=None, scale=1 / 60, decimals=2),
+    Series("naps", "daily_sleep", "nap_s", "Siestes", "min", "Sommeil", higher_is_better=None, scale=1 / 60),
     # Stress
     Series("stress_avg", "daily_stress", "avg", "Stress moyen", "", "Stress", higher_is_better=False),
     Series("stress_high", "daily_stress", "high_s", "Stress élevé", "min", "Stress", higher_is_better=False, scale=1 / 60),
@@ -56,8 +62,18 @@ SERIES: tuple[Series, ...] = (
     Series("readiness", "daily_readiness", "score", "Training Readiness", "", "Récupération"),
     Series("recovery_time", "daily_readiness", "recovery_time_min", "Temps de récupération", "h", "Récupération",
            higher_is_better=False, scale=1 / 60, decimals=1),
+    Series("rf_sleep", "daily_readiness", "sleep_factor_pct", "Readiness : facteur sommeil", "%", "Récupération"),
+    Series("rf_recovery", "daily_readiness", "recovery_factor_pct", "Readiness : facteur temps de récupération", "%", "Récupération"),
+    Series("rf_acwr", "daily_readiness", "acwr_factor_pct", "Readiness : facteur charge aiguë", "%", "Récupération"),
+    Series("rf_hrv", "daily_readiness", "hrv_factor_pct", "Readiness : facteur VFC", "%", "Récupération"),
+    Series("rf_stress", "daily_readiness", "stress_history_factor_pct", "Readiness : facteur historique de stress", "%", "Récupération"),
+    Series("rf_sleep_history", "daily_readiness", "sleep_history_factor_pct", "Readiness : facteur historique de sommeil", "%", "Récupération"),
     # Entraînement
     Series("intensity", "daily_intensity", "total_min", "Minutes d'intensité", "min", "Entraînement"),
+    Series("intensity_moderate", "daily_intensity", "moderate_min", "Minutes d'intensité modérée", "min", "Entraînement"),
+    Series("intensity_vigorous", "daily_intensity", "vigorous_min", "Minutes d'intensité vigoureuse", "min", "Entraînement"),
+    Series("weekly_load", "daily_training_status", "weekly_load", "Charge sur 7 jours (statut)", "", "Entraînement",
+           higher_is_better=None),
     Series("acute_load", "daily_training_load", "acute_load", "Charge aiguë", "", "Entraînement", higher_is_better=None),
     Series("chronic_load", "daily_training_load", "chronic_load", "Charge chronique", "", "Entraînement", higher_is_better=None),
     Series("acwr", "daily_training_load", "acwr", "Ratio aiguë / chronique", "", "Entraînement", higher_is_better=None, decimals=2),
@@ -65,6 +81,10 @@ SERIES: tuple[Series, ...] = (
     Series("vo2max_cycling", "daily_vo2max", "cycling", "VO2 max (vélo)", "ml/kg/min", "Forme", decimals=1),
     Series("endurance", "daily_endurance", "score", "Endurance Score", "", "Forme"),
     Series("hill", "daily_hill", "overall", "Hill Score", "", "Forme"),
+    Series("lt_hr", "daily_lactate_threshold", "heart_rate", "Seuil lactique : FC", "bpm", "Forme", higher_is_better=None),
+    Series("lt_pace", "daily_lactate_threshold", "pace_s_per_km", "Seuil lactique : allure", "min/km", "Forme",
+           higher_is_better=False, scale=1 / 60, decimals=2),
+    Series("lt_power", "daily_lactate_threshold", "power", "Seuil lactique : puissance", "W", "Forme"),
 )
 
 SERIES_BY_KEY = {s.key: s for s in SERIES}
@@ -114,6 +134,16 @@ DESCRIPTIONS: dict[str, str] = {
     "resp_sleep": "Nombre moyen de respirations par minute pendant le sommeil. Il est stable d'une nuit à l'autre "
                   "chez une même personne (souvent 12 à 20) : un écart net par rapport à votre normale peut "
                   "signaler une maladie, l'altitude ou une forte fatigue.",
+    "sleep_hr": "Fréquence cardiaque moyenne pendant la nuit. Elle est en général un peu au-dessus de la FC "
+                "au repos ; une nuit nettement plus haute que d'habitude signale une récupération perturbée "
+                "(entraînement tardif, alcool, repas lourd, chaleur, début de maladie).",
+    "sleep_stress": "Niveau de stress moyen mesuré par Garmin pendant le sommeil (0 à 100). Une nuit réparatrice "
+                    "reste très basse, souvent sous 15 ; une valeur élevée indique que le système nerveux "
+                    "n'a pas vraiment récupéré.",
+    "sleep_need": "Durée de sommeil recommandée par Garmin pour la nuit suivante. Elle part d'une base "
+                  "personnelle et s'ajuste selon l'entraînement récent, la VFC, les siestes et la dette de "
+                  "sommeil des nuits précédentes.",
+    "naps": "Durée totale des siestes détectées par la montre dans la journée.",
     "spo2_sleep": "Saturation en oxygène du sang mesurée au poignet pendant le sommeil. Elle se situe "
                   "habituellement entre 95 et 100 % ; des valeurs plus basses sont normales en altitude. "
                   "La mesure optique est moins précise qu'un oxymètre médical.",
@@ -132,7 +162,26 @@ DESCRIPTIONS: dict[str, str] = {
     "recovery_time": "Temps restant, estimé par Garmin, avant d'être pleinement récupéré pour un nouvel effort "
                      "intense. Il augmente après chaque séance selon sa difficulté et diminue avec le repos "
                      "et le sommeil.",
+    "rf_sleep": "Part du score de sommeil de la nuit dans le Training Readiness du matin (0 à 100 %). "
+                "100 % : la nuit ne pénalise pas le score ; une valeur basse indique que le sommeil le tire vers le bas.",
+    "rf_recovery": "Contribution du temps de récupération restant au Training Readiness (0 à 100 %). "
+                   "Elle baisse après une séance difficile et remonte à mesure que la récupération avance.",
+    "rf_acwr": "Contribution de la charge aiguë au Training Readiness (0 à 100 %). Elle baisse quand la "
+               "charge des 7 derniers jours monte vite par rapport à l'habitude.",
+    "rf_hrv": "Contribution de la VFC au Training Readiness (0 à 100 %). Elle est élevée quand la VFC "
+              "moyenne sur 7 jours est dans votre plage habituelle ou au-dessus.",
+    "rf_stress": "Contribution de l'historique de stress (3 derniers jours) au Training Readiness (0 à 100 %). "
+                 "Des journées très stressantes la font baisser.",
+    "rf_sleep_history": "Contribution de l'historique de sommeil (3 dernières nuits) au Training Readiness "
+                        "(0 à 100 %). Plusieurs nuits courtes de suite la font baisser.",
     # Entraînement
+    "intensity_moderate": "Minutes d'activité d'intensité modérée (marche rapide, footing facile) dans la journée.",
+    "intensity_vigorous": "Minutes d'activité d'intensité vigoureuse dans la journée. Elles comptent double "
+                          "dans le total des minutes d'intensité.",
+    "weekly_load": "Charge d'entraînement des 7 derniers jours telle que l'affichait le statut d'entraînement "
+                   "Garmin des anciennes montres (par exemple la fenix 5S Plus). Les montres récentes ne la "
+                   "fournissent plus : la charge aiguë prend le relais. Elle permet de suivre la charge des "
+                   "années où la charge aiguë n'existe pas.",
     "intensity": "Minutes d'activité modérée ou intense de la journée, les minutes intenses comptant double. "
                  "L'OMS recommande au moins 150 minutes par semaine.",
     "acute_load": "Charge d'entraînement des 7 derniers jours : somme pondérée de l'effet des séances "
@@ -150,6 +199,13 @@ DESCRIPTIONS: dict[str, str] = {
     "endurance": "Score Garmin d'endurance globale, calculé à partir de la VO2 max et du volume et de "
                  "l'intensité de l'entraînement des dernières semaines, toutes activités confondues. "
                  "Plus il est élevé, mieux vous tenez les efforts longs.",
+    "lt_hr": "Fréquence cardiaque au seuil lactique, estimée par Garmin lors des courses (ou d'un test guidé). "
+             "Au-delà de ce seuil, le lactate s'accumule plus vite qu'il n'est éliminé et l'effort ne peut "
+             "être tenu longtemps. Elle sert à calibrer les zones cardiaques.",
+    "lt_pace": "Allure de course au seuil lactique, en minutes par kilomètre : l'allure tenable environ une "
+               "heure en compétition. Plus elle est rapide (valeur basse), meilleure est l'endurance de course.",
+    "lt_power": "Puissance de course au seuil lactique (FTP de course), en watts, mesurée par la montre. "
+                "Elle progresse avec l'endurance et dépend du poids saisi dans Garmin.",
     "hill": "Score Garmin d'aptitude en montée (1 à 100), combinant l'endurance en montée (volume "
             "de dénivelé) et la force en montée (performance sur les pentes raides).",
 }
