@@ -105,10 +105,15 @@ export async function render(view, params, ctx) {
     for (const c of charts) if (c !== source.chart) setXRange(c, range);
   };
 
+  // FC et stress : toute la journée si le détail a été enregistré, sinon seulement la nuit.
+  const daySeries = new Set(intr.day_series ?? []);
+  const nightOnly = (key) => (daySeries.has(key) ? "" : " (sommeil)");
   const specs = [
-    { key: "body_battery", title: "Body Battery", color: "--c-bb", gap: 9 * 60 * MIN, y: { min: 0, max: 100 }, fill: true },
-    { key: "heart_rate", title: "Fréquence cardiaque (sommeil)", color: "--c-hr", unit: "bpm", gap: 20 * MIN },
-    { key: "stress", title: "Stress (sommeil)", color: "--c-stress", gap: 20 * MIN, y: { min: 0, max: 100 } },
+    // Sans le détail de la journée, la Body Battery n'a que quelques points par jour : grand écart toléré.
+    { key: "body_battery", title: "Body Battery", color: "--c-bb", gap: daySeries.has("body_battery") ? 30 * MIN : 9 * 60 * MIN,
+      y: { min: 0, max: 100 }, fill: true },
+    { key: "heart_rate", title: `Fréquence cardiaque${nightOnly("heart_rate")}`, color: "--c-hr", unit: "bpm", gap: 20 * MIN },
+    { key: "stress", title: `Stress${nightOnly("stress")}`, color: "--c-stress", gap: 20 * MIN, y: { min: 0, max: 100 } },
     { key: "hrv", title: "VFC (sommeil)", color: "--c-hrv", unit: "ms", gap: 30 * MIN },
     { key: "spo2", title: "SpO2 (sommeil)", color: "--c-spo2", unit: "%", gap: 20 * MIN },
     { key: "respiration", title: "Respiration (sommeil)", color: "--c-resp", unit: "rpm", gap: 20 * MIN, decimals: 1 },
@@ -159,12 +164,16 @@ export async function render(view, params, ctx) {
   }
 
   if (!shown) {
-    grid.innerHTML = `<div class="notice">Aucune mesure détaillée disponible pour ces 3 jours.</div>`;
+    grid.innerHTML = `<div class="notice">Aucune mesure détaillée disponible pour ces 3 jours. Garmin ne fournit
+      le détail minute par minute que pendant environ 4 à 5 mois : il n'est conservé ici que s'il a été synchronisé à temps.</div>`;
   } else {
     const note = document.createElement("p");
     note.className = "small muted";
-    note.textContent = "Garmin fournit le détail minute par minute pendant le sommeil ; en journée, seuls quelques "
-      + "points de Body Battery sont importés. Les valeurs journalières complètes figurent dans le tableau ci-dessous.";
+    note.textContent = daySeries.size
+      ? "Détail minute par minute du sommeil et de la journée (FC, stress, Body Battery). "
+        + "Les valeurs journalières complètes figurent dans le tableau ci-dessous."
+      : "Détail de la journée absent : Garmin ne le fournit que pendant environ 4 à 5 mois, il n'est "
+        + "conservé ici que s'il a été synchronisé à temps. Les valeurs journalières figurent dans le tableau ci-dessous.";
     view.append(note);
   }
 

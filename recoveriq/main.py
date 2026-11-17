@@ -25,7 +25,7 @@ from recoveriq.db import repository as repo
 from recoveriq.db.database import connect, init_db
 from recoveriq.db.legacy_migration import migrate_legacy_home
 from recoveriq.garmin.auth import GarminAuth
-from recoveriq.garmin.sync import SETTING_BACKFILL_COMPLETE, SyncService
+from recoveriq.garmin.sync import SyncService, backfill_needed
 from recoveriq.garmin.token_store import TokenStore
 from recoveriq.logging_setup import setup_logging
 from recoveriq.scheduler import build_scheduler, needs_catch_up, schedule_weekly_report
@@ -36,12 +36,10 @@ STATIC_DIR = resources.files("recoveriq") / "static"
 
 
 def _on_connected(sync: SyncService, origin: str) -> None:
-    """Après connexion : import historique s'il n'est pas terminé, sinon rattrapage éventuel."""
-    with connect() as conn:
-        complete = repo.get_setting(conn, SETTING_BACKFILL_COMPLETE, False)
+    """Après connexion : import historique s'il reste à faire, sinon rattrapage éventuel."""
     if origin == "login" or needs_catch_up():
         sync.request_incremental(origin)
-    if not complete:
+    if backfill_needed():
         sync.request_backfill(origin)
 
 

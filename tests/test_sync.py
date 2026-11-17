@@ -10,11 +10,13 @@ from recoveriq.db.database import connect
 from recoveriq.garmin.client import GarminClient, extract_status
 from recoveriq.garmin.sync import (
     SETTING_BACKFILL_COMPLETE,
+    SETTING_BACKFILL_FETCHERS,
     SETTING_BACKFILL_START,
     SETTING_LAST_SYNCED,
     SyncService,
     _aligned_blocks,
     _Job,
+    backfill_needed,
 )
 
 TODAY = date(2026, 11, 17)
@@ -78,6 +80,40 @@ def test_backfill_resumes_and_stops_on_empty_streak(db, cfg):
     assert daily_dates(garmin2, "user_summary") == []
 
 
+def test_raw_only_fetchers_count_detail_for_empty_streak(db, cfg):
+    """FC et stress de la journée : sans table normalisée, l'arrêt dépend des mesures présentes."""
+    start = TODAY - timedelta(days=40)
+    with connect() as conn:
+        repo.set_setting(conn, SETTING_BACKFILL_START, start.isoformat())
+    garmin = FakeGarmin(data_until=TODAY - timedelta(days=19))
+    make_service(cfg, garmin)._run(_Job("backfill", "test"))
+    assert len(daily_dates(garmin, "heart_rates")) == 20 + 5
+    assert len(daily_dates(garmin, "stress")) == 20 + 5
+    with connect() as conn:
+        n = conn.execute("SELECT COUNT(*) FROM raw_response WHERE fetcher = 'heart_rates'").fetchone()[0]
+    assert n == 25
+
+
+def test_backfill_rerun_when_a_fetcher_is_added(db, cfg):
+    with connect() as conn:
+        repo.set_setting(conn, SETTING_BACKFILL_START, (TODAY - timedelta(days=5)).isoformat())
+    assert backfill_needed()                                   # jamais terminé
+    make_service(cfg, FakeGarmin())._run(_Job("backfill", "test"))
+    assert not backfill_needed()
+
+    # Ancienne installation : import terminé avant l'ajout de « heart_rates ».
+    with connect() as conn:
+        covered = repo.get_setting(conn, SETTING_BACKFILL_FETCHERS)
+        repo.set_setting(conn, SETTING_BACKFILL_FETCHERS, [n for n in covered if n != "heart_rates"])
+        conn.execute("DELETE FROM import_progress WHERE fetcher = 'heart_rates'")
+    assert backfill_needed()
+    garmin = FakeGarmin()
+    make_service(cfg, garmin)._run(_Job("backfill", "test"))
+    assert len(daily_dates(garmin, "heart_rates")) == 6        # seule la nouvelle série est remontée
+    assert daily_dates(garmin, "user_summary") == []
+    assert not backfill_needed()
+
+
 def test_backfill_records_errors_and_retries_them(db, cfg):
     start = TODAY - timedelta(days=2)
     failing = (TODAY - timedelta(days=1)).isoformat()
@@ -87,8 +123,8 @@ def test_backfill_records_errors_and_retries_them(db, cfg):
     make_service(cfg, garmin)._run(_Job("backfill", "test"))
     with connect() as conn:
         run = repo.list_runs(conn)[0]
-        assert run["status"] == "partial" and run["errors_count"] == 5   # 5 fetchers journaliers
-        assert repo.progress_summary(conn)["error"] == 5
+        assert run["status"] == "partial" and run["errors_count"] == 7   # 7 fetchers journaliers
+        assert repo.progress_summary(conn)["error"] == 7
 
     # Seconde passe : seuls les appels en erreur sont rejoués.
     garmin2 = FakeGarmin()

@@ -58,6 +58,14 @@ class FakeGarmin:
         self._log("training_readiness", d)
         return []
 
+    def get_heart_rates(self, d):
+        self._log("heart_rates", d)
+        return {"calendarDate": d, "heartRateValues": [[1_000_000, 60]] if self._has(d) else None}
+
+    def get_stress_data(self, d):
+        self._log("stress", d)
+        return {"calendarDate": d, "stressValuesArray": [[1_000_000, 25]] if self._has(d) else []}
+
     def get_body_battery(self, s, e):
         self._log("body_battery", s, e)
         return []

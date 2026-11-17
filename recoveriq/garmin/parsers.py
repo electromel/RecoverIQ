@@ -388,5 +388,15 @@ def parse_activities(payload: Any, start: str, end: str) -> Rows:
     return {"activity": rows}
 
 
+def no_rows(payload: Any, date: str) -> Rows:
+    """Appel conservé uniquement en brut (détail intra-journalier)."""
+    return {}
+
+
+def has_values(payload: Any, key: str) -> bool:
+    """Vrai si la liste ``payload[key]`` contient au moins une mesure."""
+    return isinstance(payload, dict) and isinstance(payload.get(key), list) and bool(payload[key])
+
+
 DailyParser = Callable[[Any, str], Rows]
 RangeParser = Callable[[Any, str, str], Rows]

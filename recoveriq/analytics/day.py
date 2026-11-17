@@ -5,8 +5,10 @@ Deux niveaux de détail :
 * **journalier** : la valeur de chaque indicateur du catalogue pour les 3 jours ;
 * **intra-journalier** : les mesures fines déjà présentes dans les réponses brutes
   Garmin (``raw_response``), sans nouvel appel réseau. Le sommeil fournit la nuit
-  minute par minute (FC, stress, Body Battery, VFC, SpO2, respiration, phases) et
-  l'appel Body Battery par plage quelques points de la journée.
+  minute par minute (FC, stress, Body Battery, VFC, SpO2, respiration, phases) ;
+  les appels « FC de la journée » et « stress de la journée » couvrent les 24 h
+  (FC toutes les 2 min, stress et Body Battery toutes les 3 min) ; l'appel Body
+  Battery par plage ajoute quelques points par jour quand ce détail manque.
 
 Les instants sont renvoyés en millisecondes epoch (UTC) ; le navigateur les affiche
 à l'heure locale. Valeurs négatives = « pas de mesure » chez Garmin : écartées.
@@ -80,6 +82,24 @@ def _merge(series: list[list[Point]]) -> list[Point]:
     return [[t, seen[t]] for t in sorted(seen)]
 
 
+def _prefer(primary: list[list[Point]], others: list[list[Point]]) -> list[Point]:
+    """Fusionne ``others`` dans ``primary`` hors des plages déjà couvertes par ``primary``."""
+    windows = [(pts[0][0], pts[-1][0]) for pts in (sorted(p) for p in primary) if pts]
+    kept = [[pt for pt in pts if not any(a <= pt[0] <= b for a, b in windows)] for pts in others]
+    return _merge(primary + kept)
+
+
+def _pairs(items: Any, value_index: int) -> list[Point]:
+    """Tableaux Garmin ``[[epoch_ms, …, valeur, …], …]`` → points."""
+    out: list[Point] = []
+    for v in items if isinstance(items, list) else []:
+        if isinstance(v, list) and len(v) > value_index:
+            t, val = _epoch_ms(v[0]), _value(v[value_index])
+            if t is not None and val is not None:
+                out.append([t, val])
+    return out
+
+
 def _sleep_stages(levels: Any) -> list[dict[str, Any]]:
     """Phases de sommeil : 0 profond, 1 léger, 2 paradoxal, 3 éveil."""
     out = []
@@ -97,6 +117,18 @@ def intraday(conn: sqlite3.Connection, first: date, last: date) -> dict[str, Any
     """Séries intra-journalières couvrant [first, last] (plus la nuit qui suit ``last``)."""
     lo, hi = first.isoformat(), (last + timedelta(days=1)).isoformat()
     hr, stress, bb, hrv, spo2, resp, stages, nights = [], [], [], [], [], [], [], []
+
+    # Journée complète : FC (toutes les 2 min), stress et Body Battery (toutes les 3 min).
+    # Là où elle existe, elle prime sur les autres sources (horodatages décalés).
+    full: dict[str, list[list[Point]]] = {"heart_rate": [], "stress": [], "body_battery": []}
+    for p in _payloads(conn, "heart_rates", lo, hi):
+        if isinstance(p, dict):
+            full["heart_rate"].append(_pairs(p.get("heartRateValues"), 1))
+    for p in _payloads(conn, "stress", lo, hi):
+        if isinstance(p, dict):
+            full["stress"].append(_pairs(p.get("stressValuesArray"), 1))
+            # [instant, statut, niveau, version]
+            full["body_battery"].append(_pairs(p.get("bodyBatteryValuesArray"), 2))
 
     # Sommeil : la réponse du jour J décrit la nuit qui se termine le matin de J.
     for p in _payloads(conn, "sleep", lo, hi):
@@ -120,18 +152,15 @@ def intraday(conn: sqlite3.Connection, first: date, last: date) -> dict[str, Any
         for day in p if isinstance(p, list) else []:
             if not isinstance(day, dict) or not (lo <= str(day.get("date", ""))[:10] <= hi):
                 continue
-            pts = []
-            for v in day.get("bodyBatteryValuesArray") or []:
-                if isinstance(v, list) and len(v) > 1:
-                    t, val = _epoch_ms(v[0]), _value(v[1])
-                    if t is not None and val is not None:
-                        pts.append([t, val])
-            bb.append(pts)
+            bb.append(_pairs(day.get("bodyBatteryValuesArray"), 1))
 
     return {
-        "heart_rate": _merge(hr), "stress": _merge(stress), "body_battery": _merge(bb),
+        "heart_rate": _prefer(full["heart_rate"], hr), "stress": _prefer(full["stress"], stress),
+        "body_battery": _prefer(full["body_battery"], bb),
         "hrv": _merge(hrv), "spo2": _merge(spo2), "respiration": _merge(resp),
         "sleep_stages": stages, "nights": sorted(nights, key=lambda n: n["start"]),
+        # Séries couvrant aussi la journée (pas seulement la nuit).
+        "day_series": sorted(k for k, v in full.items() if any(v)),
     }
 
 

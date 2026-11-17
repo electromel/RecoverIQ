@@ -159,3 +159,25 @@ def test_day_view_three_days_with_intraday_from_raw(demo):
     assert intr["spo2"][0][1] == 95.0
     assert intr["nights"] == [{"start": 1_000_000, "end": 2_000_000, "date": d.isoformat()}]
     assert all(a["date"] in view["dates"] for a in view["activities"])
+    assert intr["day_series"] == []
+
+
+def test_day_view_full_day_series_take_precedence(demo):
+    from recoveriq.analytics.day import intraday
+
+    d = TODAY - timedelta(days=10)
+    sleep = {"sleepHeartRate": [{"startGMT": 1_000_030, "value": 70}, {"startGMT": 9_000_000, "value": 48}]}
+    hr = {"heartRateValues": [[1_000_000, 55], [1_120_000, None], [1_240_000, 57]]}
+    stress = {"stressValuesArray": [[1_000_000, 20], [1_180_000, -1]],
+              "bodyBatteryValuesArray": [[1_000_000, "MEASURED", 80, 3.0]]}
+    with connect() as conn:
+        repo.save_raw(conn, "sleep", d.isoformat(), d.isoformat(), "ok", sleep)
+        repo.save_raw(conn, "heart_rates", d.isoformat(), d.isoformat(), "ok", hr)
+        repo.save_raw(conn, "stress", d.isoformat(), d.isoformat(), "ok", stress)
+        intr = intraday(conn, d - timedelta(days=1), d + timedelta(days=1))
+
+    # Le point de sommeil couvert par la journée est écarté ; celui hors plage est gardé.
+    assert intr["heart_rate"] == [[1_000_000, 55.0], [1_240_000, 57.0], [9_000_000, 48.0]]
+    assert intr["stress"] == [[1_000_000, 20.0]]
+    assert intr["body_battery"][0] == [1_000_000, 80.0]
+    assert intr["day_series"] == ["body_battery", "heart_rate", "stress"]

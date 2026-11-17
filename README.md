@@ -49,7 +49,8 @@ Le serveur écoute uniquement sur `127.0.0.1` : l'application n'est pas exposée
    - l'**import historique**, du plus récent au plus ancien, depuis la date de votre première activité.
 
 L'import historique peut durer plusieurs heures : environ 5 appels par jour d'historique, avec une
-pause de 1,5 s entre deux appels, soit environ 4 h pour 5 ans. Il est **reprenable** : si vous fermez
+pause de 1,5 s entre deux appels, soit environ 4 h pour 5 ans (plus 2 appels par jour pour le détail
+de la FC et du stress de la journée, que Garmin ne fournit que sur les 4 à 5 derniers mois). Il est **reprenable** : si vous fermez
 l'application, il repart là où il s'était arrêté au lancement suivant. La progression s'affiche dans
 la page.
 
@@ -59,7 +60,7 @@ la page.
 |---|---|
 | **Accueil** | Cartes du jour : Body Battery, VFC, Training Readiness, sommeil, stress. Chaque valeur est comparée à la moyenne des 30 jours précédents, avec son écart et l'évolution sur 14 jours |
 | **Indicateurs** | Une courbe par indicateur (30 séries) : valeurs, moyennes mobiles 7 j et 28 j, bande de normalité, statistiques et tendance. Un clic sur une mesure (point bleu) ouvre son détail |
-| **Détail d'un jour** | Veille, jour et lendemain : courbes minute par minute tirées des réponses Garmin déjà importées (Body Battery, et pendant le sommeil FC, stress, VFC, SpO2, respiration, phases), activités de ces 3 jours et valeurs journalières de tous les indicateurs |
+| **Détail d'un jour** | Veille, jour et lendemain : courbes minute par minute tirées des réponses Garmin déjà importées (FC, stress et Body Battery sur 24 h ; VFC, SpO2, respiration et phases pendant le sommeil). Garmin ne fournit ce détail que pendant environ 4 à 5 mois : il est conservé ici dès qu'il a été synchronisé. Après une mise à jour qui ajoute une série, l'import historique se relance seul au démarrage pour la remonter, activités de ces 3 jours et valeurs journalières de tous les indicateurs |
 | **Charge d'entraînement** | Charge aiguë vs chronique, ratio A/C avec zones, focus de charge vs plages cibles, frise du statut, volume hebdomadaire |
 | **Activités** | Liste filtrable par type, avec totaux |
 | **Corrélations** | Sommeil vs VFC et Body Battery du lendemain, stress vs recharge nocturne, VO2 max vs volume, semaine vs week-end |

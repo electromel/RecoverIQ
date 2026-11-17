@@ -46,6 +46,7 @@ _DEFAULT_HISTORY_YEARS = 3
 SETTING_BACKFILL_START = "backfill.start_date"
 SETTING_BACKFILL_COMPLETE = "backfill.complete"
 SETTING_BACKFILL_STOPPED = "backfill.stopped_fetchers"
+SETTING_BACKFILL_FETCHERS = "backfill.fetchers"   # appels couverts par le dernier import complet
 SETTING_LAST_SYNCED = "sync.last_synced_date"
 
 
@@ -299,6 +300,7 @@ class SyncService:
 
         with connect() as conn:
             repo.set_setting(conn, SETTING_BACKFILL_COMPLETE, True)
+            repo.set_setting(conn, SETTING_BACKFILL_FETCHERS, sorted(f.name for f in DAILY_FETCHERS + RANGE_FETCHERS))
             pending = repo.progress_summary(conn).get("error", 0)
         msg = f"Import historique terminé depuis le {start.isoformat()}."
         if stopped:
@@ -365,6 +367,8 @@ class SyncService:
                 except Exception as exc:  # parser à corriger ; le brut est conservé
                     log.exception("Parser %s en échec pour %s", fetcher.name, start)
                     error = f"Erreur d'analyse : {type(exc).__name__}: {exc}"
+                if fetcher.has_detail and result.outcome == "ok":
+                    has_data = fetcher.has_detail(result.payload)
             if track_progress:
                 repo.mark_progress(conn, fetcher.name, start, end, "error" if error else "done", error)
             if error:
@@ -390,6 +394,20 @@ class SyncService:
     def _interruptible_sleep(self, seconds: float) -> None:
         if self._stop.wait(seconds):
             raise SyncStopped()
+
+
+def backfill_needed() -> bool:
+    """Import historique à (re)lancer : jamais terminé, ou un appel ajouté depuis.
+
+    Les appels déjà importés sont sautés (``import_progress``) : seule la nouvelle
+    série est remontée, jusqu'à ``empty_streak_stop_days`` jours vides consécutifs.
+    """
+    with connect() as conn:
+        complete = repo.get_setting(conn, SETTING_BACKFILL_COMPLETE, False)
+        covered = repo.get_setting(conn, SETTING_BACKFILL_FETCHERS)
+    if not complete or covered is None:
+        return True
+    return bool({f.name for f in DAILY_FETCHERS + RANGE_FETCHERS} - set(covered))
 
 
 def _chunks(start: date, end: date, size: int) -> list[tuple[date, date]]:
