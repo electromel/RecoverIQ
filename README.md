@@ -296,3 +296,7 @@ Pour travailler sur l'interface sans toucher à vos données, générez une base
 .\.venv\Scripts\python.exe -m recoveriq.devtools.demo_data data\demo 400
 $env:RECOVERIQ_HOME = "data\demo"; $env:RECOVERIQ_PORT = "8766"; .\.venv\Scripts\python.exe -m recoveriq
 ```
+
+## Licence
+
+MIT, voir le fichier [LICENSE](LICENSE).
