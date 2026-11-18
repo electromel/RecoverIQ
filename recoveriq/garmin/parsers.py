@@ -166,6 +166,10 @@ def parse_hrv(payload: Any, date: str) -> Rows:
     }
 
 
+# Tendance de forme (VO2 max) : codes Garmin → -1 baisse, 0 stable, +1 hausse (0 et 255 : non calculée).
+_FITNESS_TREND = {1: -1, 2: 0, 3: 1}
+
+
 def parse_training_status(payload: Any, date: str) -> Rows:
     """Statut, charge aiguë/chronique, ACWR, focus de charge et VO2 max."""
     status = _primary_device_entry(_get(payload, "mostRecentTrainingStatus", "latestTrainingStatusData"))
@@ -208,7 +212,7 @@ def parse_training_status(payload: Any, date: str) -> Rows:
             load_tunnel_min=_num(_get(status, "loadTunnelMin")),
             load_tunnel_max=_num(_get(status, "loadTunnelMax")),
             load_trend=_get(status, "loadLevelTrend") if isinstance(_get(status, "loadLevelTrend"), int) else None,
-            fitness_trend=_get(status, "fitnessTrend") if isinstance(_get(status, "fitnessTrend"), int) else None,
+            fitness_trend=_FITNESS_TREND.get(_get(status, "fitnessTrend")),
             paused=int(bool(_get(status, "trainingPaused"))) if status else None,
         ),
         "daily_training_load": _row(
@@ -232,6 +236,9 @@ def parse_training_status(payload: Any, date: str) -> Rows:
             focus_feedback=_str(_get(balance, "trainingBalanceFeedbackPhrase")),
         ),
         "daily_vo2max": vo2_rows,
+        # Anciennes montres : âge de forme fourni avec la VO2 max (les récentes passent par
+        # le service dédié, voir parse_fitness_age).
+        "daily_fitness_age": _row(date, fitness_age=_positive(_get(vo2_generic, "fitnessAge"))),
     }
 
 
@@ -329,6 +336,24 @@ def parse_training_readiness(payload: Any, date: str) -> Rows:
         ),
         "readiness_event": events,
     }
+
+
+def parse_fitness_age(payload: Any, date: str) -> Rows:
+    """Âge de forme physique (service Garmin dédié), arrondi au dixième d'année.
+
+    Sans mesure récente (composantes « stale »), Garmin ne renvoie que l'âge réel :
+    la journée est alors considérée vide.
+    """
+    def age(key: str) -> float | None:
+        value = _positive(_get(payload, key))
+        return round(value, 1) if value is not None else None
+
+    return {"daily_fitness_age": _row(
+        date, _meta=("chronological_age",),
+        fitness_age=age("fitnessAge"),
+        achievable_age=age("achievableFitnessAge"),
+        chronological_age=_int(_get(payload, "chronologicalAge")),
+    )}
 
 
 def parse_endurance_day(payload: Any, date: str) -> Rows:

@@ -24,6 +24,7 @@ MIGRATIONS: dict[int, str] = {
     3: "migration_003_readiness_event.sql",   # relevés Readiness horodatés (récupération après effort)
     4: "migration_004_device.sql",   # montre de chaque activité, nom des modèles
     5: "migration_005_more_metrics.sql",   # sommeil (FC, besoin), meilleurs temps, seuil lactique
+    6: "migration_006_fitness_age.sql",   # âge de forme physique, tendance de forme -1 / 0 / +1
 }
 
 _db_path: Path | None = None

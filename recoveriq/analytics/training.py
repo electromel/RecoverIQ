@@ -84,8 +84,25 @@ def training_view(conn: sqlite3.Connection, period: str, today: date) -> dict[st
         "focus": focus,
         "status_timeline": timeline,
         "current_status": timeline[-1] if timeline else None,
+        "fitness_trend": fitness_trend(conn, today),
         "weekly_volume": weekly_volume(conn, start),
     }
+
+
+def fitness_trend(conn: sqlite3.Connection, today: date) -> dict[str, Any] | None:
+    """Dernière tendance de forme Garmin (-1, 0, +1) et date depuis laquelle elle dure."""
+    rows = conn.execute(
+        "SELECT date, fitness_trend AS v FROM daily_training_status "
+        "WHERE fitness_trend IS NOT NULL AND date <= ? ORDER BY date DESC LIMIT 400",
+        (today.isoformat(),)).fetchall()
+    if not rows:
+        return None
+    since = rows[0]["date"]
+    for r in rows[1:]:
+        if r["v"] != rows[0]["v"]:
+            break
+        since = r["date"]
+    return {"value": rows[0]["v"], "date": rows[0]["date"], "since": since}
 
 
 def weekly_volume(conn: sqlite3.Connection, start: date | None) -> list[dict[str, Any]]:

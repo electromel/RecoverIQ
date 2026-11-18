@@ -74,6 +74,10 @@ class FakeGarmin:
         self._log("hill_score", s, e)
         return {}
 
+    def get_fitnessage_data(self, d):
+        self._log("fitness_age", d)
+        return {}
+
     def get_endurance_score(self, s, e=None):
         self._log("endurance_score" if e else "endurance_day", s, e)
         return {}

@@ -342,3 +342,32 @@ def test_migration_5_fills_sleep_and_best_times(tmp_path):
         assert tuple(c.execute("SELECT best_1k_s, best_5k_s, best_10k_s FROM activity").fetchone()) == (409.69, 2224.9, None)
         assert [tuple(r) for r in c.execute("SELECT date, score, avg_hr, sleep_need_min FROM daily_sleep")] == [
             ("2026-11-17", 84, 59.0, 420)]
+
+
+def test_migration_6_fitness_trend_and_age(tmp_path):
+    import json
+    import sqlite3
+
+    from recoveriq.db import database
+
+    path = tmp_path / "old.db"
+    conn = sqlite3.connect(path)
+    conn.executescript((Path(database.__file__).parent / "schema.sql").read_text("utf-8"))
+    for n in ("002_ai", "003_readiness_event", "004_device", "005_more_metrics"):
+        conn.executescript((Path(database.__file__).parent / f"migration_{n}.sql").read_text("utf-8"))
+    conn.execute("PRAGMA user_version=5")
+    conn.executemany("INSERT INTO daily_training_status (date, fitness_trend) VALUES (?, ?)",
+                     [("2024-01-01", 1), ("2024-01-02", 2), ("2024-01-03", 3), ("2024-01-04", 0), ("2024-01-05", 255)])
+    raw = "INSERT INTO raw_response (fetcher, start_date, end_date, fetched_at, outcome, payload) VALUES (?, ?, ?, 'x', 'ok', ?)"
+    conn.execute(raw, ("training_status", "2024-01-01", "2024-01-01",
+                       json.dumps({"mostRecentVO2Max": {"generic": {"fitnessAge": 31}}})))
+    conn.execute(raw, ("training_status", "2024-01-02", "2024-01-02",
+                       json.dumps({"mostRecentVO2Max": {"generic": {"fitnessAge": None}}})))
+    conn.commit()
+    conn.close()
+
+    database.init_db(path)
+    with connect() as c:
+        assert [r[0] for r in c.execute("SELECT fitness_trend FROM daily_training_status ORDER BY date")] == [
+            -1, 0, 1, None, None]
+        assert [tuple(r) for r in c.execute("SELECT date, fitness_age FROM daily_fitness_age")] == [("2024-01-01", 31.0)]

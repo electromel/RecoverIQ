@@ -30,6 +30,7 @@ METRICS: tuple[Metric, ...] = (
     Metric("daily_respiration", "Fréquence respiratoire"),
     Metric("daily_spo2", "SpO2"),
     Metric("daily_lactate_threshold", "Seuil lactique"),
+    Metric("daily_fitness_age", "Âge de forme physique"),
     Metric("activity", "Activités", key="activity_id"),
     Metric("readiness_event", "Relevés Training Readiness", key="timestamp_local", listed=False),
     Metric("device", "Montres", key="device_id", listed=False, newer_by="date"),

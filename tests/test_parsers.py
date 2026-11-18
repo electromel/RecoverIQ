@@ -167,3 +167,23 @@ def test_lactate_threshold():
         {"date": "2025-01-01", "heart_rate": 168.0, "pace_s_per_km": 315.8, "power": 316.0},   # 5:16 / km
     ]
     assert parsers.parse_lactate_threshold(None, "2024-09-01", "2024-09-30") == {"daily_lactate_threshold": []}
+
+
+def test_fitness_age():
+    rows = parsers.parse_fitness_age({"chronologicalAge": 56, "fitnessAge": 49.68043492691141,
+                                      "achievableFitnessAge": 48.884790339217744}, D)
+    assert rows["daily_fitness_age"] == [
+        {"date": D, "fitness_age": 49.7, "achievable_age": 48.9, "chronological_age": 56}]
+    # Composantes périmées : Garmin ne donne que l'âge réel, journée vide.
+    assert parsers.parse_fitness_age({"chronologicalAge": 53, "components": {}}, D) == {"daily_fitness_age": []}
+
+
+def test_fitness_trend_and_legacy_fitness_age():
+    def status(trend, age):
+        return parsers.parse_training_status({
+            "mostRecentTrainingStatus": {"latestTrainingStatusData": {"1": {"trainingStatus": 5, "fitnessTrend": trend}}},
+            "mostRecentVO2Max": {"generic": {"calendarDate": D, "vo2MaxValue": 45.0, "fitnessAge": age}},
+        }, D)
+    assert [status(t, None)["daily_training_status"][0]["fitness_trend"] for t in (1, 2, 3, 0, 255)] == [-1, 0, 1, None, None]
+    assert status(2, 20)["daily_fitness_age"] == [{"date": D, "fitness_age": 20}]
+    assert status(2, None)["daily_fitness_age"] == []

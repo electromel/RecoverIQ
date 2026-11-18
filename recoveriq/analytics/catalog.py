@@ -79,6 +79,12 @@ SERIES: tuple[Series, ...] = (
     Series("acwr", "daily_training_load", "acwr", "Ratio aiguë / chronique", "", "Entraînement", higher_is_better=None, decimals=2),
     Series("vo2max", "daily_vo2max", "running", "VO2 max (course)", "ml/kg/min", "Forme", decimals=1),
     Series("vo2max_cycling", "daily_vo2max", "cycling", "VO2 max (vélo)", "ml/kg/min", "Forme", decimals=1),
+    Series("fitness_age", "daily_fitness_age", "fitness_age", "Âge de forme physique", "ans", "Forme",
+           higher_is_better=False, decimals=1),
+    Series("fitness_age_achievable", "daily_fitness_age", "achievable_age", "Âge de forme atteignable", "ans",
+           "Forme", higher_is_better=False, decimals=1),
+    Series("fitness_trend", "daily_training_status", "fitness_trend", "Tendance de forme", "", "Forme",
+           decimals=1),
     Series("endurance", "daily_endurance", "score", "Endurance Score", "", "Forme"),
     Series("hill", "daily_hill", "overall", "Hill Score", "", "Forme"),
     Series("lt_hr", "daily_lactate_threshold", "heart_rate", "Seuil lactique : FC", "bpm", "Forme", higher_is_better=None),
@@ -196,6 +202,9 @@ DESCRIPTIONS: dict[str, str] = {
               "le principal indicateur de capacité aérobie. Elle évolue lentement, sur des semaines.",
     "vo2max_cycling": "Consommation maximale d'oxygène estimée lors des sorties vélo avec capteur de puissance. "
                       "Elle est souvent un peu inférieure à la VO2 max de course.",
+    "fitness_age": "Âge correspondant à votre condition physique, calculé par Garmin à partir de la VO2 max, de la FC au repos, de l'IMC et des minutes d'activité vigoureuse des dernières semaines. Plus il est inférieur à votre âge réel, meilleure est votre forme. Les anciennes montres le déduisaient de la seule VO2 max, par années entières (20 ans au minimum).",
+    "fitness_age_achievable": "Âge de forme que Garmin estime atteignable en atteignant ses objectifs : jours et minutes d'activité vigoureuse par semaine, IMC.",
+    "fitness_trend": "Évolution récente de la VO2 max selon le statut d'entraînement Garmin : +1 en hausse, 0 stable, −1 en baisse. Les moyennes mobiles indiquent la tendance dominante sur la période.",
     "endurance": "Score Garmin d'endurance globale, calculé à partir de la VO2 max et du volume et de "
                  "l'intensité de l'entraînement des dernières semaines, toutes activités confondues. "
                  "Plus il est élevé, mieux vous tenez les efforts longs.",

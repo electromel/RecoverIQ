@@ -7,7 +7,8 @@ Chaque plage a un identifiant de couleur (``risk`` rouge, ``caution`` orange,
 * fixes (nombre) : score de sommeil, Training Readiness, stress, Body Battery, ACWR ;
 * journalières (liste alignée sur les dates du graphique, ``None`` = pas de plage ce
   jour-là) : VFC (ligne de base personnelle calculée par Garmin chaque jour), VO2 max
-  (catégories selon l'âge à la date et le sexe), charge aiguë (plage optimale Garmin).
+  (catégories selon l'âge à la date et le sexe), charge aiguë (plage optimale Garmin),
+  âge de forme physique (âge réel à la date).
 
 Une borne ``None`` (hors liste) = bord du graphique.
 """
@@ -74,6 +75,14 @@ _FIXED: dict[str, dict[str, Any]] = {
             {"id": "optimal", "label": "Faible (26-50)", "min": 26, "max": 51},
             {"id": "caution", "label": "Moyen (51-75)", "min": 51, "max": 76},
             {"id": "risk", "label": "Élevé (76-100)", "min": 76, "max": None},
+        ],
+    },
+    "fitness_trend": {
+        "note": "Tendance de forme du statut d'entraînement Garmin (évolution de la VO2 max).",
+        "items": [
+            {"id": "risk", "label": "En baisse (−1)", "min": None, "max": -0.5},
+            {"id": "under", "label": "Stable (0)", "min": -0.5, "max": 0.5},
+            {"id": "optimal", "label": "En hausse (+1)", "min": 0.5, "max": None},
         ],
     },
     "acwr": {
@@ -143,12 +152,7 @@ def _vo2max(conn: sqlite3.Connection, dates: list[str]) -> dict[str, Any] | None
         return {"note": "Catégories VO2 max indisponibles : le profil Garmin (âge, sexe) sera lu à la "
                         "prochaine synchronisation.", "items": []}
     table = _VO2_MALE if gender == "MALE" else _VO2_FEMALE
-    born = date.fromisoformat(birth[:10])
-    thresholds = []
-    for d in dates:
-        day = date.fromisoformat(d)
-        age = day.year - born.year - ((day.month, day.day) < (born.month, born.day))
-        thresholds.append(table[bisect_right(_VO2_AGES, age)])
+    thresholds = [table[bisect_right(_VO2_AGES, age)] for age in _ages(conn, dates) or []]
     bounds = [[None] * len(dates)] + [[t[i] for t in thresholds] for i in range(4)] + [[None] * len(dates)]
     return {
         "note": "Catégories VO2 max Garmin (Cooper Institute) selon votre âge à chaque date et votre sexe.",
@@ -156,6 +160,29 @@ def _vo2max(conn: sqlite3.Connection, dates: list[str]) -> dict[str, Any] | None
             {"id": cid, "label": label,
              "min": bounds[i] if i else None, "max": bounds[i + 1] if i < 4 else None}
             for i, (cid, label) in enumerate(_VO2_LEVELS)
+        ],
+    }
+
+
+def _ages(conn: sqlite3.Connection, dates: list[str]) -> list[int] | None:
+    """Âge réel à chaque date, d'après la date de naissance du profil Garmin."""
+    birth = repo.get_setting(conn, SETTING_BIRTH_DATE)
+    if not birth:
+        return None
+    born = date.fromisoformat(birth[:10])
+    return [day.year - born.year - ((day.month, day.day) < (born.month, born.day))
+            for day in map(date.fromisoformat, dates)]
+
+
+def _fitness_age(conn: sqlite3.Connection, dates: list[str]) -> dict[str, Any] | None:
+    ages = _ages(conn, dates)
+    if ages is None:
+        return None
+    return {
+        "note": "Comparaison avec votre âge réel à chaque date (profil Garmin).",
+        "items": [
+            {"id": "optimal", "label": "Plus jeune que votre âge", "min": None, "max": ages},
+            {"id": "caution", "label": "Plus âgé que votre âge", "min": ages, "max": None},
         ],
     }
 
@@ -176,7 +203,7 @@ def _acute_load(conn: sqlite3.Connection, dates: list[str]) -> dict[str, Any] | 
 
 
 _DYNAMIC = {"hrv": _hrv, "hrv_weekly": _hrv, "vo2max": _vo2max, "vo2max_cycling": _vo2max,
-            "acute_load": _acute_load}
+            "acute_load": _acute_load, "fitness_age": _fitness_age, "fitness_age_achievable": _fitness_age}
 
 
 def zones_for(conn: sqlite3.Connection, key: str, dates: list[str]) -> dict[str, Any] | None:

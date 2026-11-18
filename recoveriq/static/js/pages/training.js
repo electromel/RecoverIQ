@@ -29,6 +29,9 @@ function focusHtml(focus) {
     ${feedback ? `<br>Bilan Garmin : <b>${escapeHtml(feedback)}</b>` : ""}</p>`;
 }
 
+/** Tendance de forme Garmin (évolution de la VO2 max). */
+const TREND_LABELS = { "-1": "en baisse ↘", 0: "stable →", 1: "en hausse ↗" };
+
 export async function render(view, _params, ctx) {
   const latest = latestOnly();
   let period = loadPref("period", "90");
@@ -66,6 +69,7 @@ export async function render(view, _params, ctx) {
     }
     const c = colors();
     const status = data.current_status;
+    const trend = data.fitness_trend;
     const zoneTotal = Object.values(data.zone_days).reduce((a, b) => a + b, 0) || 1;
     const chips = data.zones.map((z) => `
       <div class="zone-chip" style="background:${zoneColor(c, z.id)}">
@@ -91,6 +95,8 @@ export async function render(view, _params, ctx) {
         <div class="card"><h2>Focus de charge</h2>${focusHtml(data.focus)}</div>
         <div class="card"><h2>Statut d'entraînement</h2>
           <p>Actuel : <b>${escapeHtml(trainingStatusLabel(status?.status))}</b>${status ? ` depuis le ${fmtDate(status.date)}` : ""}</p>
+          ${trend ? `<p>Tendance de forme : <b>${TREND_LABELS[trend.value]}</b> depuis le ${fmtDate(trend.since)}
+            <a class="small" href="#/metric/fitness_trend">historique</a></p>` : ""}
           ${timeline ? `<h3>Derniers changements</h3><ul>${timeline}</ul>` : ""}
         </div>
       </div>

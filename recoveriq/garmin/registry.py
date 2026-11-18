@@ -4,7 +4,7 @@ Point d'extension unique : ajouter un indicateur = déclarer un :class:`Fetcher`
 ici, écrire son parser dans :mod:`recoveriq.garmin.parsers` et, si besoin, sa table
 dans ``schema.sql``. Le moteur de synchronisation n'a pas à être modifié.
 
-Choix d'appels (vérifiés sur garminconnect 0.3.2) : 5 appels journaliers suffisent
+Choix d'appels (vérifiés sur garminconnect 0.3.2) : 6 appels journaliers suffisent
 à couvrir tous les indicateurs journaliers, car le résumé journalier et les données de sommeil
 contiennent déjà stress, intensité, FC repos, respiration et SpO2. Cela divise
 par deux la durée de l'import historique par rapport à un appel par indicateur.
@@ -61,6 +61,8 @@ FETCHERS: tuple[Fetcher, ...] = (
             lambda g, d: g.get_sleep_data(d), parsers.parse_sleep),
     Fetcher("training_readiness", "Training Readiness", Scope.DAILY,
             lambda g, d: g.get_training_readiness(d), parsers.parse_training_readiness),
+    Fetcher("fitness_age", "Âge de forme physique", Scope.DAILY,
+            lambda g, d: g.get_fitnessage_data(d), parsers.parse_fitness_age),
     # Détail intra-journalier, conservé en brut pour la vue « détail sur 3 jours ».
     # Garmin ne le sert que pendant quelques mois (≈ 4,5) : il faut l'enregistrer à temps.
     Fetcher("heart_rates", "FC de la journée", Scope.DAILY,

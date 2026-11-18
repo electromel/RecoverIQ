@@ -123,8 +123,8 @@ def test_backfill_records_errors_and_retries_them(db, cfg):
     make_service(cfg, garmin)._run(_Job("backfill", "test"))
     with connect() as conn:
         run = repo.list_runs(conn)[0]
-        assert run["status"] == "partial" and run["errors_count"] == 7   # 7 fetchers journaliers
-        assert repo.progress_summary(conn)["error"] == 7
+        assert run["status"] == "partial" and run["errors_count"] == 8   # 8 fetchers journaliers
+        assert repo.progress_summary(conn)["error"] == 8
 
     # Seconde passe : seuls les appels en erreur sont rejoués.
     garmin2 = FakeGarmin()
